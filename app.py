@@ -128,129 +128,127 @@ def show_federation_registration():
     if is_eighth_team:
         st.success("🎉 You're registering the 8th team! Tournament will start after registration.")
     
-    with st.form("register_form"):
-        # Basic info
-        col1, col2 = st.columns(2)
-        with col1:
-            country = st.selectbox("Country", AFRICAN_COUNTRIES)
-            manager = st.text_input("Manager Name")
-        with col2:
-            rep_name = st.text_input("Representative Name")
-            rep_email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-        
-        # Squad management
+    # Use a separate form for adding players
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        player_name = st.text_input("Player Name", placeholder="Enter player name", key="player_name_input")
+    with col2:
+        # Calculate current position counts
         if 'squad' not in st.session_state:
             st.session_state.squad = []
         
         squad = st.session_state.squad
-        
-        # Calculate current position counts
         pos_count = {'GK': 0, 'DF': 0, 'MD': 0, 'AT': 0}
         for player in squad:
             pos_count[player.position] += 1
         
-        # Manual player addition with position limits
-        st.write(f"**Squad: {len(squad)}/23 players**")
+        # Only show available positions
+        available_positions = []
+        if pos_count['GK'] < 3: available_positions.append("GK")
+        if pos_count['DF'] < 7: available_positions.append("DF")
+        if pos_count['MD'] < 8: available_positions.append("MD")
+        if pos_count['AT'] < 5: available_positions.append("AT")
         
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            player_name = st.text_input("Player Name", placeholder="Enter player name")
-        with col2:
-            # Only show available positions
-            available_positions = []
-            if pos_count['GK'] < 3:  # Max 3 goalkeepers
-                available_positions.append("GK")
-            if pos_count['DF'] < 7:  # Max 7 defenders
-                available_positions.append("DF")
-            if pos_count['MD'] < 8:  # Max 8 midfielders
-                available_positions.append("MD")
-            if pos_count['AT'] < 5:  # Max 5 attackers
-                available_positions.append("AT")
-            
-            position = st.selectbox("Position", available_positions, 
-                                  disabled=len(available_positions) == 0)
-        with col3:
-            add_disabled = (len(squad) >= 23 or not player_name or len(available_positions) == 0)
-            if st.form_submit_button("➕ Add Player", disabled=add_disabled):
-                if player_name and len(squad) < 23:
-                    # Generate ratings according to requirements
-                    ratings = {}
-                    for pos in ["GK", "DF", "MD", "AT"]:
-                        if pos == position:
-                            ratings[pos] = random.randint(50, 100)  # Natural position: 50-100
-                        else:
-                            ratings[pos] = random.randint(0, 50)    # Non-natural: 0-50
-                    
-                    # Create Player object
-                    new_player = Player(player_name, position)
-                    # Store ratings in session state
-                    if 'player_ratings' not in st.session_state:
-                        st.session_state.player_ratings = {}
-                    st.session_state.player_ratings[player_name] = ratings
-                    st.session_state.squad.append(new_player)
-                    st.rerun()
-        
-        # Show current squad composition
-        st.write("### Squad Composition")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Goalkeepers", f"{pos_count['GK']}/3")
-        with col2:
-            st.metric("Defenders", f"{pos_count['DF']}/7")
-        with col3:
-            st.metric("Midfielders", f"{pos_count['MD']}/8")
-        with col4:
-            st.metric("Attackers", f"{pos_count['AT']}/5")
-        
-        # Show squad requirements
-        if len(squad) < 23:
-            st.warning(f"**Squad Requirements:** 3 GK, 7 DF, 8 MD, 5 AT (Need {23 - len(squad)} more players)")
-        
-        # Show current squad
-        if squad:
-            # Captain selection when squad is complete
-            if len(squad) == 23:
-                captain_options = [f"{p.name} ({p.position})" for p in squad]
-                selected_captain = st.selectbox("Select Captain", captain_options)
-                captain_index = captain_options.index(selected_captain)
+        position = st.selectbox("Position", available_positions, 
+                              disabled=len(available_positions) == 0,
+                              key="position_select")
+    
+    # Add player button (outside the main form)
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        add_disabled = (len(squad) >= 23 or not player_name or len(available_positions) == 0)
+        if st.button("➕ Add Player", disabled=add_disabled, use_container_width=True):
+            if player_name and len(squad) < 23:
+                # Generate ratings according to requirements
+                ratings = {}
+                for pos in ["GK", "DF", "MD", "AT"]:
+                    if pos == position:
+                        ratings[pos] = random.randint(50, 100)  # Natural position: 50-100
+                    else:
+                        ratings[pos] = random.randint(0, 50)    # Non-natural: 0-50
                 
-                for i, player in enumerate(squad):
-                    player.is_captain = (i == captain_index)
-            
-            # Show players by position
-            st.write("### Your Squad")
-            positions = {
-                "GK": "🥅 Goalkeepers",
-                "DF": "🛡️ Defenders", 
-                "MD": "⚡ Midfielders",
-                "AT": "🎯 Attackers"
-            }
-            
-            for pos, title in positions.items():
-                position_players = [p for p in squad if p.position == pos]
-                if position_players:
-                    with st.expander(f"{title} ({len(position_players)})"):
-                        for player in position_players:
-                            captain = " ⭐ CAPTAIN" if player.is_captain else ""
-                            # Show player's natural position rating
-                            if 'player_ratings' in st.session_state:
-                                rating = st.session_state.player_ratings[player.name][player.position]
-                                st.write(f"**{player.name}** - Rating: {rating}{captain}")
-                            else:
-                                st.write(f"**{player.name}**{captain}")
-        
-        # Clear squad button
-        if squad:
-            if st.button("🗑️ Clear Squad"):
-                st.session_state.squad = []
-                if 'player_ratings' in st.session_state:
-                    del st.session_state.player_ratings
+                # Create Player object
+                new_player = Player(player_name, position)
+                # Store ratings in session state
+                if 'player_ratings' not in st.session_state:
+                    st.session_state.player_ratings = {}
+                st.session_state.player_ratings[player_name] = ratings
+                st.session_state.squad.append(new_player)
                 st.rerun()
+    
+    # Show current squad status
+    st.write(f"**Squad: {len(squad)}/23 players**")
+    
+    # Show current squad composition
+    st.write("### Squad Composition")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1: st.metric("Goalkeepers", f"{pos_count['GK']}/3")
+    with col2: st.metric("Defenders", f"{pos_count['DF']}/7")
+    with col3: st.metric("Midfielders", f"{pos_count['MD']}/8")
+    with col4: st.metric("Attackers", f"{pos_count['AT']}/5")
+    
+    # Show squad requirements
+    if len(squad) < 23:
+        st.warning(f"**Need {23 - len(squad)} more players** (3 GK, 7 DF, 8 MD, 5 AT)")
+    
+    # Show current squad
+    if squad:
+        # Captain selection when squad is complete
+        if len(squad) == 23:
+            captain_options = [f"{p.name} ({p.position})" for p in squad]
+            selected_captain = st.selectbox("Select Captain", captain_options, key="captain_select")
+            captain_index = captain_options.index(selected_captain)
+            
+            for i, player in enumerate(squad):
+                player.is_captain = (i == captain_index)
+        
+        # Show players by position
+        st.write("### Your Squad")
+        positions = {
+            "GK": "🥅 Goalkeepers",
+            "DF": "🛡️ Defenders", 
+            "MD": "⚡ Midfielders",
+            "AT": "🎯 Attackers"
+        }
+        
+        for pos, title in positions.items():
+            position_players = [p for p in squad if p.position == pos]
+            if position_players:
+                with st.expander(f"{title} ({len(position_players)})"):
+                    for player in position_players:
+                        captain = " ⭐ CAPTAIN" if player.is_captain else ""
+                        # Show player's natural position rating
+                        if 'player_ratings' in st.session_state:
+                            rating = st.session_state.player_ratings[player.name][player.position]
+                            st.write(f"**{player.name}** - Rating: {rating}{captain}")
+                        else:
+                            st.write(f"**{player.name}**{captain}")
+    
+    # Clear squad button
+    if squad:
+        if st.button("🗑️ Clear Squad", key="clear_squad"):
+            st.session_state.squad = []
+            if 'player_ratings' in st.session_state:
+                del st.session_state.player_ratings
+            st.rerun()
+    
+    # Main registration form (only for the final submission)
+    with st.form("register_form"):
+        # Basic info
+        col1, col2 = st.columns(2)
+        with col1:
+            country = st.selectbox("Country", AFRICAN_COUNTRIES, key="country_select")
+            manager = st.text_input("Manager Name", key="manager_input")
+        with col2:
+            rep_name = st.text_input("Representative Name", key="rep_name_input")
+            rep_email = st.text_input("Email", key="rep_email_input")
+            password = st.text_input("Password", type="password", key="password_input")
         
         # Submit registration
         submit_disabled = (len(squad) != 23)
-        if st.form_submit_button("🚀 Register Federation", use_container_width=True, disabled=submit_disabled):
+        submitted = st.form_submit_button("🚀 Register Federation", use_container_width=True, disabled=submit_disabled)
+        
+        if submitted:
             if len(squad) == 23:
                 # Final validation
                 final_pos_count = {'GK': 0, 'DF': 0, 'MD': 0, 'AT': 0}
