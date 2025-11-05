@@ -1,9 +1,9 @@
 import streamlit as st
 import time
 import random
-from frontend.utils.auth import init_session_state, login_user, logout_user
-from frontend.utils.database import save_team, get_database, get_players_by_federation
-from frontend.utils.match_simulator import simulate_match
+from utils.auth import init_session_state, login_user, logout_user
+from utils.database import save_team, get_database, get_players_by_federation
+from utils.match_simulator import simulate_match
 
 init_session_state()
 
