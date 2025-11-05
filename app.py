@@ -1,10 +1,9 @@
 import streamlit as st
 import time
 import random
-from utils.auth import init_session_state, login_user, logout_user
-from utils.database import save_team, get_database, get_players_by_federation
-from utils.match_simulator import simulate_match
-
+from frontend.utils.auth import init_session_state, login_user, logout_user
+from frontend.utils.database import save_team, get_database, get_players_by_federation
+from frontend.utils.match_simulator import simulate_match
 init_session_state()
 
 AFRICAN_COUNTRIES = ["Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Cape Verde", "DR Congo", "Egypt", "Ethiopia", "Ghana", "Ivory Coast", "Kenya", "Morocco", "Mozambique", "Nigeria", "Senegal", "South Africa", "Tanzania", "Tunisia", "Uganda", "Zambia", "Zimbabwe"]
