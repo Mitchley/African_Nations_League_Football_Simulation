@@ -1,10 +1,27 @@
 from pymongo import MongoClient
 from datetime import datetime
+import streamlit as st
+import os
+from dotenv import load_dotenv
 
 def get_database():
-    connection_string = "mongodb+srv://mitchleytapiwa2_db_user:D6Zr2jDQhUUmQh0L@cluster0.yp01ize.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+    try:
+        # Try Streamlit secrets first (for deployment)
+        connection_string = st.secrets["MONGO_URI"]
+        database_name = st.secrets["MONGO_DB_NAME"]
+    except:
+        try:
+            # Fallback to environment variables (for local development)
+            load_dotenv()
+            connection_string = os.getenv("MONGO_URI")
+            database_name = os.getenv("MONGO_DB_NAME", "AfricanLeague")
+        except:
+            # Final fallback to your hardcoded connection (backup)
+            connection_string = "mongodb+srv://mitchleytapiwa2_db_user:D6Zr2jDQhUUmQh0L@cluster0.yp01ize.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+            database_name = "AfricanLeague"
+    
     client = MongoClient(connection_string)
-    return client['AfricanLeague']
+    return client[database_name]
 
 def save_team(team_data):
     """Save a new team to the database"""
