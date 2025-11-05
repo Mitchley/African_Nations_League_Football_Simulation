@@ -93,45 +93,81 @@ def show_federation_registration():
     st.markdown("---")
     st.subheader("👥 Build Your Squad (23 Players)")
     
+    # Initialize squad in session state
     if 'squad' not in st.session_state:
         st.session_state.squad = []
     
+    # Show current squad status
+    squad = st.session_state.squad
+    st.write(f"**Squad: {len(squad)}/23 players**")
+    
+    # ALWAYS show the add player form, but disable when full
     with st.form("add_player_form"):
         col1, col2 = st.columns([2, 1])
-        with col1: player_name = st.text_input("Player Name")
-        with col2: position = st.selectbox("Position", ["GK", "DF", "MD", "AT"])
+        with col1:
+            player_name = st.text_input("Player Name", placeholder="Enter player name", 
+                                      disabled=len(squad) >= 23)
+        with col2:
+            position = st.selectbox("Position", ["GK", "DF", "MD", "AT"], 
+                                  disabled=len(squad) >= 23)
         
-        if st.form_submit_button("➕ Add Player"):
+        if st.form_submit_button("➕ Add Player", disabled=len(squad) >= 23):
             if player_name:
-                st.session_state.squad.append(Player(player_name, position))
-                st.rerun()
+                # Check for duplicates
+                if any(p.name == player_name for p in squad):
+                    st.error("❌ Player name already exists in squad")
+                else:
+                    st.session_state.squad.append(Player(player_name, position))
+                    st.success(f"✅ Added {player_name} ({position})")
+                    st.rerun()
+            else:
+                st.error("❌ Please enter a player name")
     
-    squad = st.session_state.squad
+    if len(squad) >= 23:
+        st.success("✅ Squad complete! 23/23 players")
+    
+    # Display squad and captain selection
     if squad:
-        st.write(f"**Squad: {len(squad)}/23 players**")
+        st.markdown("---")
+        
+        # Captain selection
         captain_options = [f"{p.name} ({p.position})" for p in squad]
         selected_captain = st.selectbox("**Select Captain**", captain_options)
         captain_index = captain_options.index(selected_captain)
         
+        # Update captain status
         for i, player in enumerate(squad):
             player.is_captain = (i == captain_index)
         
+        # Display squad with positions count
         st.write("**Your Squad:**")
+        
+        # Count positions
+        positions = {'GK': 0, 'DF': 0, 'MD': 0, 'AT': 0}
+        for player in squad:
+            positions[player.position] += 1
+        
+        st.write(f"**Position breakdown:** GK: {positions['GK']}, DF: {positions['DF']}, MD: {positions['MD']}, AT: {positions['AT']}")
+        
         for player in squad:
             captain = " ⭐ CAPTAIN" if player.is_captain else ""
             st.write(f"- {player.name} ({player.position}){captain}")
         
+        # Clear squad button
         if st.button("🗑️ Clear Squad"):
             st.session_state.squad = []
             st.rerun()
     
+    # Registration button
     st.markdown("---")
     if st.button("🚀 Register Federation", type="primary", use_container_width=True):
         if validate_registration(country, manager, representative_name, representative_email, password, squad):
             success = register_federation(country, manager, representative_name, representative_email, password, squad)
-            if success and login_user(representative_email, password):
-                st.success("🎉 Registration successful! Logging you in...")
-                st.rerun()
+            if success:
+                # Auto-login after successful registration
+                if login_user(representative_email, password):
+                    st.success("🎉 Registration successful! Logging you in...")
+                    st.rerun()
 
 def validate_registration(country, manager, rep_name, rep_email, password, squad):
     if not all([country, manager, rep_name, rep_email, password]):
