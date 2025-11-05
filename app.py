@@ -70,104 +70,101 @@ def show_visitor_access():
         st.session_state.role = "visitor"
         st.success("🎉 Welcome! Entering as visitor...")
         st.rerun()
-
 def show_federation_registration():
-    st.subheader("Federation Registration")
-    st.info("Register your national team to participate in the tournament")
+    st.subheader("🇺🇳 Federation Registration")
     
     db = get_database()
-    existing_teams = list(db.federations.find({}, {"country": 1}))
-    existing_countries = [team['country'] for team in existing_teams]
-    available_countries = [c for c in AFRICAN_COUNTRIES if c not in existing_countries]
     
-    if not available_countries:
-        st.error("🚫 All countries have been registered for this tournament")
-        return
-    
-    country = st.selectbox("**Select Country**", available_countries)
-    manager = st.text_input("**Manager Name**")
-    representative_name = st.text_input("**Representative Name**")
-    representative_email = st.text_input("**Representative Email**")
-    password = st.text_input("**Create Password**", type="password")
-    
-    st.markdown("---")
-    st.subheader("👥 Build Your Squad (23 Players)")
-    
-    # Initialize squad in session state
-    if 'squad' not in st.session_state:
-        st.session_state.squad = []
-    
-    # Show current squad status
-    squad = st.session_state.squad
-    st.write(f"**Squad: {len(squad)}/23 players**")
-    
-    # ALWAYS show the add player form, but disable when full
-    with st.form("add_player_form"):
-        col1, col2 = st.columns([2, 1])
+    with st.form("register_form"):
+        # Basic info
+        col1, col2 = st.columns(2)
         with col1:
-            player_name = st.text_input("Player Name", placeholder="Enter player name", 
-                                      disabled=len(squad) >= 23)
+            country = st.selectbox("Country", AFRICAN_COUNTRIES)
+            manager = st.text_input("Manager Name")
         with col2:
-            position = st.selectbox("Position", ["GK", "DF", "MD", "AT"], 
-                                  disabled=len(squad) >= 23)
+            rep_name = st.text_input("Representative Name")
+            rep_email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
         
-        if st.form_submit_button("➕ Add Player", disabled=len(squad) >= 23):
-            if player_name:
-                # Check for duplicates
-                if any(p.name == player_name for p in squad):
-                    st.error("❌ Player name already exists in squad")
-                else:
-                    st.session_state.squad.append(Player(player_name, position))
-                    st.success(f"✅ Added {player_name} ({position})")
-                    st.rerun()
-            else:
-                st.error("❌ Please enter a player name")
-    
-    if len(squad) >= 23:
-        st.success("✅ Squad complete! 23/23 players")
-    
-    # Display squad and captain selection
-    if squad:
-        st.markdown("---")
+        # Squad management
+        if 'squad' not in st.session_state:
+            st.session_state.squad = auto_generate_squad()
+        
+        squad = st.session_state.squad
+        
+        # Auto-generate button
+        if st.button("🔄 Auto-generate Squad"):
+            st.session_state.squad = auto_generate_squad()
+            st.rerun()
+        
+        # Show squad summary
+        st.write(f"**Squad: {len(squad)}/23 players**")
+        pos_count = {pos: len([p for p in squad if p["naturalPosition"] == pos]) for pos in ["GK", "DF", "MD", "AT"]}
+        st.write(f"GK: {pos_count['GK']} | DF: {pos_count['DF']} | MD: {pos_count['MD']} | AT: {pos_count['AT']}")
         
         # Captain selection
-        captain_options = [f"{p.name} ({p.position})" for p in squad]
-        selected_captain = st.selectbox("**Select Captain**", captain_options)
+        captain_options = [f"{p['name']} ({p['naturalPosition']})" for p in squad]
+        selected_captain = st.selectbox("Select Captain", captain_options)
+        
+        # Update captain
         captain_index = captain_options.index(selected_captain)
-        
-        # Update captain status
         for i, player in enumerate(squad):
-            player.is_captain = (i == captain_index)
+            player["isCaptain"] = (i == captain_index)
         
-        # Display squad with positions count
-        st.write("**Your Squad:**")
+        # Show players
+        with st.expander("View Squad"):
+            for player in squad:
+                captain = " ⭐" if player["isCaptain"] else ""
+                st.write(f"{player['name']} ({player['naturalPosition']}){captain}")
         
-        # Count positions
-        positions = {'GK': 0, 'DF': 0, 'MD': 0, 'AT': 0}
-        for player in squad:
-            positions[player.position] += 1
-        
-        st.write(f"**Position breakdown:** GK: {positions['GK']}, DF: {positions['DF']}, MD: {positions['MD']}, AT: {positions['AT']}")
-        
-        for player in squad:
-            captain = " ⭐ CAPTAIN" if player.is_captain else ""
-            st.write(f"- {player.name} ({player.position}){captain}")
-        
-        # Clear squad button
-        if st.button("🗑️ Clear Squad"):
-            st.session_state.squad = []
-            st.rerun()
-    
-    # Registration button
-    st.markdown("---")
-    if st.button("🚀 Register Federation", type="primary", use_container_width=True):
-        if validate_registration(country, manager, representative_name, representative_email, password, squad):
-            success = register_federation(country, manager, representative_name, representative_email, password, squad)
-            if success:
-                # Auto-login after successful registration
-                if login_user(representative_email, password):
-                    st.success("🎉 Registration successful! Logging you in...")
+        # Submit
+        if st.form_submit_button("🚀 Register Federation", use_container_width=True):
+            if register_federation(country, manager, rep_name, rep_email, password, squad):
+                st.success("✅ Registered successfully!")
+                if login_user(rep_email, password):
                     st.rerun()
+
+def register_federation(country, manager, rep_name, rep_email, password, squad):
+    try:
+        db = get_database()
+        
+        # Check duplicates
+        if db.users.find_one({"email": rep_email}) or db.federations.find_one({"country": country}):
+            st.error("❌ Email or country already registered")
+            return False
+        
+        # Create user
+        db.users.insert_one({
+            "email": rep_email, "password": password, "role": "federation", 
+            "country": country, "created_at": datetime.now()
+        })
+        
+        # Calculate team rating
+        total_rating = sum(p["ratings"][p["naturalPosition"]] for p in squad)
+        team_rating = round(total_rating / len(squad), 2)
+        
+        # Save team
+        team_data = {
+            "country": country, "manager": manager, "representative_name": rep_name,
+            "representative_email": rep_email, "rating": team_rating, "players": squad,
+            "points": 0, "registered_at": datetime.now()
+        }
+        
+        db.federations.insert_one(team_data)
+        
+        # Initialize tournament if 8 teams
+        if db.federations.count_documents({}) >= 8:
+            initialize_tournament(db)
+            st.info("🎉 Tournament started with 8 teams!")
+        
+        if 'squad' in st.session_state:
+            del st.session_state.squad
+            
+        return True
+        
+    except Exception as e:
+        st.error(f"❌ Error: {str(e)}")
+        return False
 
 def validate_registration(country, manager, rep_name, rep_email, password, squad):
     if not all([country, manager, rep_name, rep_email, password]):
