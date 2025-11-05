@@ -1,18 +1,61 @@
 import streamlit as st
 import time
 import random
+from datetime import datetime
 from frontend.utils.auth import init_session_state, login_user, logout_user
 from frontend.utils.database import save_team, get_database, get_players_by_federation
 from frontend.utils.match_simulator import simulate_match
+
 init_session_state()
 
 AFRICAN_COUNTRIES = ["Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Cape Verde", "DR Congo", "Egypt", "Ethiopia", "Ghana", "Ivory Coast", "Kenya", "Morocco", "Mozambique", "Nigeria", "Senegal", "South Africa", "Tanzania", "Tunisia", "Uganda", "Zambia", "Zimbabwe"]
+
+AFRICAN_FIRST_NAMES = ["Mohamed", "Youssef", "Ahmed", "Kofi", "Kwame", "Adebayo", "Tendai", "Blessing", "Ibrahim", "Abdul", "Chinedu", "Faith"]
+AFRICAN_LAST_NAMES = ["Diallo", "Traore", "Mensah", "Adebayo", "Okafor", "Mohammed", "Ibrahim", "Kamara", "Sow", "Keita", "Ndiaye", "Conte"]
 
 class Player:
     def __init__(self, name, position, is_captain=False):
         self.name = name
         self.position = position
         self.is_captain = is_captain
+
+def generate_player_name():
+    return f"{random.choice(AFRICAN_FIRST_NAMES)} {random.choice(AFRICAN_LAST_NAMES)}"
+
+def generate_player_ratings(position):
+    ratings = {}
+    for pos in ["GK", "DF", "MD", "AT"]:
+        if pos == position:
+            ratings[pos] = random.randint(50, 100)  # Natural position
+        else:
+            ratings[pos] = random.randint(0, 50)    # Non-natural position
+    return ratings
+
+def auto_generate_squad():
+    positions = ["GK"] * 3 + ["DF"] * 7 + ["MD"] * 8 + ["AT"] * 5
+    squad = []
+    
+    for pos in positions:
+        ratings = generate_player_ratings(pos)
+        squad.append({
+            "name": generate_player_name(),
+            "naturalPosition": pos,
+            "ratings": ratings,
+            "isCaptain": False
+        })
+    
+    # Select captain from outfield players
+    outfield_players = [p for p in squad if p["naturalPosition"] != "GK"]
+    if outfield_players:
+        random.choice(outfield_players)["isCaptain"] = True
+    
+    return squad
+
+def calculate_team_rating(squad):
+    if not squad:
+        return 75.0
+    total_rating = sum(p["ratings"][p["naturalPosition"]] for p in squad)
+    return round(total_rating / len(squad), 2)
 
 def main():
     st.set_page_config(page_title="African Nations League", layout="wide", page_icon="⚽")
@@ -70,10 +113,16 @@ def show_visitor_access():
         st.session_state.role = "visitor"
         st.success("🎉 Welcome! Entering as visitor...")
         st.rerun()
+
 def show_federation_registration():
     st.subheader("🇺🇳 Federation Registration")
     
     db = get_database()
+    existing_teams = db.federations.count_documents({})
+    is_eighth_team = existing_teams == 7
+    
+    if is_eighth_team:
+        st.success("🎉 You're registering the 8th team! Tournament will start after registration.")
     
     with st.form("register_form"):
         # Basic info
@@ -88,49 +137,73 @@ def show_federation_registration():
         
         # Squad management
         if 'squad' not in st.session_state:
-            st.session_state.squad = auto_generate_squad()
+            st.session_state.squad = []
         
         squad = st.session_state.squad
         
-        # Auto-generate button
-        if st.button("🔄 Auto-generate Squad"):
-            st.session_state.squad = auto_generate_squad()
-            st.rerun()
-        
-        # Show squad summary
+        # Manual player addition
         st.write(f"**Squad: {len(squad)}/23 players**")
-        pos_count = {pos: len([p for p in squad if p["naturalPosition"] == pos]) for pos in ["GK", "DF", "MD", "AT"]}
-        st.write(f"GK: {pos_count['GK']} | DF: {pos_count['DF']} | MD: {pos_count['MD']} | AT: {pos_count['AT']}")
         
-        # Captain selection
-        captain_options = [f"{p['name']} ({p['naturalPosition']})" for p in squad]
-        selected_captain = st.selectbox("Select Captain", captain_options)
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            player_name = st.text_input("Player Name", placeholder="Enter player name")
+        with col2:
+            position = st.selectbox("Position", ["GK", "DF", "MD", "AT"])
         
-        # Update captain
-        captain_index = captain_options.index(selected_captain)
-        for i, player in enumerate(squad):
-            player["isCaptain"] = (i == captain_index)
+        if st.form_submit_button("➕ Add Player"):
+            if player_name and len(squad) < 23:
+                ratings = generate_player_ratings(position)
+                new_player = {
+                    "name": player_name,
+                    "naturalPosition": position,
+                    "ratings": ratings,
+                    "isCaptain": False
+                }
+                st.session_state.squad.append(new_player)
+                st.rerun()
         
-        # Show players
-        with st.expander("View Squad"):
-            for player in squad:
-                captain = " ⭐" if player["isCaptain"] else ""
-                st.write(f"{player['name']} ({player['naturalPosition']}){captain}")
+        # Show current squad
+        if squad:
+            # Position counts
+            pos_count = {pos: len([p for p in squad if p["naturalPosition"] == pos]) for pos in ["GK", "DF", "MD", "AT"]}
+            st.write(f"GK: {pos_count['GK']} | DF: {pos_count['DF']} | MD: {pos_count['MD']} | AT: {pos_count['AT']}")
+            
+            # Captain selection when squad is complete
+            if len(squad) == 23:
+                captain_options = [f"{p['name']} ({p['naturalPosition']})" for p in squad]
+                selected_captain = st.selectbox("Select Captain", captain_options)
+                captain_index = captain_options.index(selected_captain)
+                
+                for i, player in enumerate(squad):
+                    player["isCaptain"] = (i == captain_index)
+            
+            # Show players
+            with st.expander("View Squad"):
+                for player in squad:
+                    captain = " ⭐" if player["isCaptain"] else ""
+                    st.write(f"{player['name']} ({player['naturalPosition']}){captain}")
         
-        # Submit
+        # Submit registration
         if st.form_submit_button("🚀 Register Federation", use_container_width=True):
-            if register_federation(country, manager, rep_name, rep_email, password, squad):
-                st.success("✅ Registered successfully!")
-                if login_user(rep_email, password):
-                    st.rerun()
+            if len(squad) == 23:
+                if register_federation(country, manager, rep_name, rep_email, password, squad):
+                    st.success("✅ Registered successfully!")
+                    if login_user(rep_email, password):
+                        st.rerun()
+            else:
+                st.error(f"❌ Need {23 - len(squad)} more players")
 
 def register_federation(country, manager, rep_name, rep_email, password, squad):
     try:
         db = get_database()
         
         # Check duplicates
-        if db.users.find_one({"email": rep_email}) or db.federations.find_one({"country": country}):
-            st.error("❌ Email or country already registered")
+        if db.users.find_one({"email": rep_email}):
+            st.error("❌ Email already registered")
+            return False
+        
+        if db.federations.find_one({"country": country}):
+            st.error("❌ Country already registered")
             return False
         
         # Create user
@@ -140,22 +213,28 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
         })
         
         # Calculate team rating
-        total_rating = sum(p["ratings"][p["naturalPosition"]] for p in squad)
-        team_rating = round(total_rating / len(squad), 2)
+        team_rating = calculate_team_rating(squad)
         
         # Save team
         team_data = {
-            "country": country, "manager": manager, "representative_name": rep_name,
-            "representative_email": rep_email, "rating": team_rating, "players": squad,
-            "points": 0, "registered_at": datetime.now()
+            "country": country, 
+            "manager": manager, 
+            "representative_name": rep_name,
+            "representative_email": rep_email, 
+            "rating": team_rating, 
+            "players": squad,
+            "points": 0, 
+            "registered_at": datetime.now()
         }
         
         db.federations.insert_one(team_data)
         
         # Initialize tournament if 8 teams
-        if db.federations.count_documents({}) >= 8:
+        team_count = db.federations.count_documents({})
+        if team_count >= 8:
             initialize_tournament(db)
-            st.info("🎉 Tournament started with 8 teams!")
+            st.balloons()
+            st.success("🎊 Tournament started with 8 teams!")
         
         if 'squad' in st.session_state:
             del st.session_state.squad
@@ -163,57 +242,42 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
         return True
         
     except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
+        st.error(f"❌ Registration error: {str(e)}")
         return False
 
-def validate_registration(country, manager, rep_name, rep_email, password, squad):
-    if not all([country, manager, rep_name, rep_email, password]):
-        st.error("❌ Please fill all fields")
-        return False
+def initialize_tournament(db):
+    """Initialize tournament bracket with 8 teams"""
+    teams = list(db.federations.find({}))
+    random.shuffle(teams)
     
-    if len(squad) != 23:
-        st.error(f"❌ Need exactly 23 players (currently {len(squad)})")
-        return False
+    # Clear existing matches
+    db.matches.delete_many({})
     
-    positions = {'GK': 0, 'DF': 0, 'MD': 0, 'AT': 0}
-    for player in squad: positions[player.position] += 1
-    
-    if positions['GK'] < 2 or positions['DF'] < 6 or positions['MD'] < 6 or positions['AT'] < 3:
-        st.error("❌ Invalid squad composition. Need: 2+ GK, 6+ DF, 6+ MD, 3+ AT")
-        return False
-    
-    return True
-
-def register_federation(country, manager, rep_name, rep_email, password, squad):
-    try:
-        db = get_database()
-        
-        if db.federations.find_one({"email": rep_email}):
-            st.error("❌ Email already registered")
-            return False
-        
-        db.users.insert_one({
-            "email": rep_email, "password": password, "role": "federation", 
-            "country": country, "createdAt": None
-        })
-        
-        team_data = {
-            "country": country, "manager": manager, "representative_name": rep_name,
-            "representative_email": rep_email, "rating": 75.0,
-            "players": [{
-                "name": p.name, "naturalPosition": p.position,
-                "ratings": {"GK": 70, "DF": 75, "MD": 78, "AT": 82},
-                "isCaptain": p.is_captain
-            } for p in squad]
+    # Create quarter-final matches
+    for i in range(0, 8, 2):
+        match_data = {
+            "teamA_id": teams[i]["_id"],
+            "teamA_name": teams[i]["country"],
+            "teamB_id": teams[i+1]["_id"],
+            "teamB_name": teams[i+1]["country"],
+            "stage": "quarterfinal",
+            "status": "scheduled",
+            "scoreA": 0,
+            "scoreB": 0,
+            "goal_scorers": [],
+            "commentary": [],
+            "method": "not_played",
+            "created_at": datetime.now()
         }
-        
-        save_team(team_data)
-        st.session_state.squad = []
-        return True
-        
-    except Exception as e:
-        st.error(f"❌ Registration error: {e}")
-        return False
+        db.matches.insert_one(match_data)
+    
+    # Create tournament document
+    tournament_data = {
+        "status": "active",
+        "current_stage": "quarterfinal",
+        "created_at": datetime.now()
+    }
+    db.tournaments.update_one({}, {"$set": tournament_data}, upsert=True)
 
 def show_app():
     if 'current_page' not in st.session_state:
@@ -293,8 +357,8 @@ def show_home():
         if user_team:
             st.subheader(f"🇺🇳 Your Team: {user_team['country']}")
             col1, col2 = st.columns(2)
-            with col1: st.metric("Points", user_team.get('points', 0))
-            with col2: st.metric("Rank", f"#{user_team.get('rank', 'N/A')}")
+            with col1: st.metric("Rating", user_team.get('rating', 75))
+            with col2: st.metric("Players", len(user_team.get('players', [])))
 
 def show_admin():
     if st.session_state.role != 'admin':
@@ -310,17 +374,18 @@ def show_admin():
             db.tournaments.update_one({}, {"$set": {"status": "active"}}, upsert=True)
             st.success("Started!")
     with col2:
-        if st.button("🔄 Reset", key="admin_reset"):
-            db.matches.update_many({}, {"$set": {"scoreA": 0, "scoreB": 0}})
-            st.success("Reset!")
+        if st.button("🔄 Reset Tournament", key="admin_reset"):
+            db.matches.delete_many({})
+            db.tournaments.delete_many({})
+            st.success("Tournament reset!")
     
     st.markdown("---")
     show_live_sim(db)
 
 def show_live_sim(db):
-    st.subheader("⚽ Live Match Simulation")
+    st.subheader("⚽ Match Simulation")
     
-    matches = list(db.matches.find({"status": "scheduled"}).limit(5))
+    matches = list(db.matches.find({"status": "scheduled"}))
     
     if not matches:
         st.info("No scheduled matches available")
@@ -328,153 +393,102 @@ def show_live_sim(db):
     
     match_options = []
     for match in matches:
-        teamA = db.federations.find_one({"_id": match['teamA']})
-        teamB = db.federations.find_one({"_id": match['teamB']})
+        teamA = db.federations.find_one({"_id": match['teamA_id']})
+        teamB = db.federations.find_one({"_id": match['teamB_id']})
         if teamA and teamB:
             match_options.append({
-                "match": match, "display": f"{teamA['country']} vs {teamB['country']}",
-                "teamA_name": teamA['country'], "teamB_name": teamB['country']
+                "match": match, 
+                "display": f"{teamA['country']} vs {teamB['country']}",
+                "teamA_name": teamA['country'], 
+                "teamB_name": teamB['country']
             })
     
-    selected_match_display = st.selectbox("Choose a match to simulate:", [m["display"] for m in match_options], key="match_selector")
-    selected_match_info = next((m for m in match_options if m["display"] == selected_match_display), None)
-    
-    if selected_match_info:
-        show_live_match_interface(db, selected_match_info)
+    if match_options:
+        selected_match_display = st.selectbox("Choose a match:", [m["display"] for m in match_options])
+        selected_match_info = next((m for m in match_options if m["display"] == selected_match_display), None)
+        
+        if selected_match_info:
+            show_match_interface(db, selected_match_info)
 
-def show_live_match_interface(db, match_info):
-    if 'match_live' not in st.session_state: st.session_state.match_live = False
-    if 'match_minute' not in st.session_state: st.session_state.match_minute = 0
-    if 'commentary' not in st.session_state: st.session_state.commentary = []
-    if 'score_a' not in st.session_state: st.session_state.score_a = 0
-    if 'score_b' not in st.session_state: st.session_state.score_b = 0
-    if 'current_match_id' not in st.session_state: st.session_state.current_match_id = None
-    
-    if st.session_state.current_match_id != match_info['match']['_id']:
-        reset_match_state()
-        st.session_state.current_match_id = match_info['match']['_id']
-    
+def show_match_interface(db, match_info):
     teamA_name, teamB_name = match_info['teamA_name'], match_info['teamB_name']
     
-    st.markdown("### **African Cup of Nations League**")
-    st.markdown(f"**LIVE: {st.session_state.match_minute}'**" if st.session_state.match_live else "**MATCH READY**")
-    
     col1, col2, col3 = st.columns([2, 1, 2])
-    with col1: st.markdown(f"### {st.session_state.score_a}"); st.markdown(f"**{teamA_name}**")
-    with col2: st.markdown("### -")
-    with col3: st.markdown(f"### {st.session_state.score_b}"); st.markdown(f"**{teamB_name}**")
+    with col1: st.markdown(f"### {teamA_name}")
+    with col2: st.markdown("### VS")
+    with col3: st.markdown(f"### {teamB_name}")
     
-    if st.session_state.commentary:
-        latest_comment = st.session_state.commentary[-1]
-        st.info(f"**{latest_comment}**")
-    
-    st.markdown("---")
-    
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2 = st.columns(2)
     with col1:
-        if not st.session_state.match_live:
-            if st.button("▶️ Play", key="play_button"): start_match_simulation(teamA_name, teamB_name)
-        else:
-            if st.button("⏸️ Pause", key="pause_button"): st.session_state.match_live = False
+        if st.button("🎮 Play Match", use_container_width=True):
+            play_match(db, match_info['match'], teamA_name, teamB_name)
     with col2:
-        if st.session_state.match_live:
-            if st.button("⏩ Fast forward", key="fast_forward_button"): fast_forward_match(teamA_name, teamB_name)
-    with col3:
-        if st.button("⚡ Quick sim", key="quick_sim_button"): quick_simulate_match(db, match_info['match'], teamA_name, teamB_name)
-    with col4:
-        if st.button("🔄 Reset", key="reset_match_button"): reset_match_state()
-    
-    if st.session_state.commentary:
-        st.subheader("📝 Match Events")
-        for event in reversed(st.session_state.commentary[-8:]): st.write(f"• {event}")
+        if st.button("⚡ Simulate Match", use_container_width=True):
+            simulate_match_quick(db, match_info['match'], teamA_name, teamB_name)
 
-def start_match_simulation(teamA_name, teamB_name):
-    st.session_state.match_live = True
-    st.session_state.match_minute = 1
-    st.session_state.commentary = [f"Match between {teamA_name} and {teamB_name} kicked off!"]
+def play_match(db, match, teamA_name, teamB_name):
+    st.info("🔄 Playing match with commentary...")
     
-    progress_bar = st.progress(0)
-    status_text = st.empty()
+    # Simulate match with commentary
+    commentary = [f"Match between {teamA_name} and {teamB_name} kicks off!"]
+    score_a, score_b = 0, 0
+    goal_scorers = []
     
     for minute in range(1, 91):
-        if not st.session_state.match_live: break
-        st.session_state.match_minute = minute
-        progress_bar.progress(minute / 90)
-        status_text.text(f"Playing... {minute}'")
-        
-        event_chance = 0.08 + (minute / 500)
-        if random.random() < event_chance:
-            event = generate_match_event()
-            st.session_state.commentary.append(f"{minute}' - {event}")
-            if "GOAL" in event:
-                if random.random() < 0.5: st.session_state.score_a += 1
-                else: st.session_state.score_b += 1
-        
-        time.sleep(0.3)
+        # Chance for events
+        if random.random() < 0.05:  # 5% chance per minute for goal
+            if random.random() < 0.5:
+                score_a += 1
+                commentary.append(f"{minute}' - GOAL! {teamA_name} scores!")
+                goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": minute, "team": teamA_name})
+            else:
+                score_b += 1
+                commentary.append(f"{minute}' - GOAL! {teamB_name} scores!")
+                goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": minute, "team": teamB_name})
+        elif random.random() < 0.08:  # Other match events
+            events = ["Great save!", "Corner kick", "Yellow card", "Close chance!"]
+            commentary.append(f"{minute}' - {random.choice(events)}")
     
-    if st.session_state.match_live:
-        st.session_state.commentary.append("🏁 Full time! Match ended.")
-        st.session_state.match_live = False
-
-def fast_forward_match(teamA_name, teamB_name):
-    remaining_time = 90 - st.session_state.match_minute
-    status_text = st.empty()
+    # Update match in database
+    db.matches.update_one(
+        {"_id": match["_id"]},
+        {"$set": {
+            "status": "completed",
+            "scoreA": score_a,
+            "scoreB": score_b,
+            "goal_scorers": goal_scorers,
+            "commentary": commentary,
+            "method": "played"
+        }}
+    )
     
-    for minute in range(remaining_time):
-        st.session_state.match_minute += 1
-        status_text.text(f"Fast forwarding... {st.session_state.match_minute}'")
-        
-        if random.random() < 0.4:
-            event = generate_match_event()
-            st.session_state.commentary.append(f"{st.session_state.match_minute}' - {event}")
-            if "GOAL" in event:
-                if random.random() < 0.5: st.session_state.score_a += 1
-                else: st.session_state.score_b += 1
-        
-        time.sleep(0.1)
+    st.success(f"✅ Match completed: {teamA_name} {score_a}-{score_b} {teamB_name}")
+    st.rerun()
+
+def simulate_match_quick(db, match, teamA_name, teamB_name):
+    # Simple simulation without commentary
+    score_a = random.randint(0, 3)
+    score_b = random.randint(0, 3)
     
-    st.session_state.commentary.append("🏁 Full time! Match ended.")
-    st.session_state.match_live = False
-
-def quick_simulate_match(db, match, teamA_name, teamB_name):
-    result = simulate_match(match['_id'], 'simulated')
-    if result:
-        st.session_state.score_a, st.session_state.score_b = result['scoreA'], result['scoreB']
-        st.session_state.match_live, st.session_state.match_minute = False, 90
-        
-        if st.session_state.score_a == 0 and st.session_state.score_b == 0:
-            st.session_state.commentary = [
-                f"Match between {teamA_name} and {teamB_name} started!",
-                "25' - Close chance! Shot goes just wide", "45' - Half time: 0-0",
-                "67' - Great save by the goalkeeper!", "89' - Final opportunity goes begging",
-                "🏁 Full time! It ends 0-0"
-            ]
-        else:
-            st.session_state.commentary = [
-                f"Match between {teamA_name} and {teamB_name} started!",
-                f"32' - GOAL! {teamA_name if st.session_state.score_a > 0 else teamB_name} scores!",
-                "45' - Half time", "65' - Yellow card shown", "78' - Substitution made",
-                "🏁 Full time! Match ended."
-            ]
-        st.success("✅ Match simulated successfully!")
-
-def reset_match_state():
-    st.session_state.match_live = False
-    st.session_state.match_minute = 0
-    st.session_state.score_a = 0
-    st.session_state.score_b = 0
-    st.session_state.commentary = []
-    st.session_state.current_match_id = None
-
-def generate_match_event():
-    events = [
-        "Great save by the goalkeeper!", "Corner kick awarded", "Yellow card shown",
-        "Free kick in dangerous position", "Shot goes wide of the post", "GOAL! What a fantastic strike!",
-        "Substitution made", "Offside called by the assistant referee", "Penalty appeal waved away",
-        "Header goes over the bar", "Counter attack!", "Beautiful passing move",
-        "Tactical foul stops the attack", "GOAL! Clinical finish!", "Injury break", "VAR check completed"
-    ]
-    return random.choice(events)
+    goal_scorers = []
+    for i in range(score_a):
+        goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": random.randint(1, 90), "team": teamA_name})
+    for i in range(score_b):
+        goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": random.randint(1, 90), "team": teamB_name})
+    
+    db.matches.update_one(
+        {"_id": match["_id"]},
+        {"$set": {
+            "status": "completed",
+            "scoreA": score_a,
+            "scoreB": score_b,
+            "goal_scorers": goal_scorers,
+            "method": "simulated"
+        }}
+    )
+    
+    st.success(f"✅ Match simulated: {teamA_name} {score_a}-{score_b} {teamB_name}")
+    st.rerun()
 
 def show_federation():
     if st.session_state.role != 'federation':
@@ -489,56 +503,48 @@ def show_federation():
     if user_team:
         col1, col2, col3 = st.columns(3)
         with col1: st.metric("Team", user_team['country'])
-        with col2: st.metric("Points", user_team.get('points', 0))
+        with col2: st.metric("Manager", user_team.get('manager', 'Unknown'))
         with col3: st.metric("Rating", user_team.get('rating', 75))
         
         st.subheader("👥 My Squad")
-        for player in user_team.get('players', [])[:5]:
+        for player in user_team.get('players', []):
             captain = " ⭐" if player.get('isCaptain') else ""
-            st.write(f"• {player['name']} ({player.get('naturalPosition', 'Player')}){captain}")
+            rating = player['ratings'][player['naturalPosition']]
+            st.write(f"• {player['name']} ({player['naturalPosition']}) - Rating: {rating}{captain}")
     else:
         st.error("No team found for your account")
 
 def show_tournament():
-    """Tournament page with simple bracket design"""
     st.title("🏆 Tournament Bracket")
     db = get_database()
     
-    # Get teams from database
     teams = list(db.federations.find({}))
+    matches = list(db.matches.find({}))
     
     st.header("AFRICAN NATIONS LEAGUE 2025")
     st.subheader("ROAD TO THE FINAL")
     
-    # Create two columns for the bracket
-    col1, col2 = st.columns(2)
+    # Quarter Finals
+    st.write("### Quarter Finals")
+    qf_matches = [m for m in matches if m.get('stage') == 'quarterfinal']
     
-    with col1:
-        st.write("**Left Bracket**")
-        # Left bracket teams (first 4 teams from database)
-        left_teams = teams[:4] if len(teams) >= 4 else teams
-        for team in left_teams:
-            st.write(f"• **{team['country']}**")
-        
-        # Add placeholder teams if less than 4
-        for _ in range(4 - len(left_teams)):
-            st.write("• **TBD**")
+    for match in qf_matches:
+        if match.get('status') == 'completed':
+            st.success(f"**{match['teamA_name']}** {match['scoreA']}-{match['scoreB']} **{match['teamB_name']}**")
+        else:
+            st.info(f"**{match['teamA_name']}** vs **{match['teamB_name']}** - Scheduled")
     
-    with col2:
-        st.write("**Right Bracket**")
-        # Right bracket teams (next 4 teams from database)
-        right_teams = teams[4:8] if len(teams) >= 8 else teams[4:] if len(teams) > 4 else []
-        for team in right_teams:
-            st.write(f"• **{team['country']}**")
-        
-        # Add placeholder teams if less than 4
-        for _ in range(4 - len(right_teams)):
-            st.write("• **TBD**")
-    
-    # Final match
-    st.markdown("---")
-    st.write("### 🏆 Final")
-    st.write("**Left Bracket Winner vs Right Bracket Winner**")
+    # Show teams if no matches yet
+    if not qf_matches and teams:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**Left Bracket**")
+            for team in teams[:4]:
+                st.write(f"• {team['country']}")
+        with col2:
+            st.write("**Right Bracket**")
+            for team in teams[4:8]:
+                st.write(f"• {team['country']}")
 
 def show_matches():
     st.title("⚽ Matches & Fixtures")
@@ -547,32 +553,50 @@ def show_matches():
     matches = list(db.matches.find({}))
     
     for match in matches:
-        teamA = db.federations.find_one({"_id": match['teamA']})
-        teamB = db.federations.find_one({"_id": match['teamB']})
-        
-        if teamA and teamB:
-            col1, col2, col3 = st.columns([3, 1, 2])
-            with col1: st.write(f"**{teamA['country']} vs {teamB['country']}**")
-            with col2: 
-                if match.get('status') == 'completed':
-                    st.success(f"**{match.get('scoreA', 0)}-{match.get('scoreB', 0)}**")
-                else: st.info("VS")
-            with col3: st.write(match.get('status', 'scheduled').title())
-            st.divider()
+        with st.expander(f"{match.get('teamA_name', 'Team A')} vs {match.get('teamB_name', 'Team B')}"):
+            if match.get('status') == 'completed':
+                st.success(f"**Final Score: {match['scoreA']}-{match['scoreB']}**")
+                st.write(f"**Method:** {match.get('method', 'unknown').title()}")
+                
+                if match.get('goal_scorers'):
+                    st.write("**Goal Scorers:**")
+                    for goal in match['goal_scorers']:
+                        st.write(f"- {goal['player']} ({goal['minute']}')")
+                
+                if match.get('method') == 'played' and match.get('commentary'):
+                    st.write("**Match Commentary:**")
+                    for comment in match['commentary'][:5]:  # Show first 5 comments
+                        st.write(f"- {comment}")
+            else:
+                st.info("**Status:** Scheduled")
 
 def show_statistics():
     st.title("📊 Statistics")
     db = get_database()
     
+    # Team Standings
     st.subheader("🏆 Team Standings")
-    teams = list(db.federations.find({}).sort("points", -1))
+    teams = list(db.federations.find({}))
+    for team in teams:
+        st.write(f"**{team['country']}** - Rating: {team.get('rating', 75)}")
     
-    for team in teams[:5]:
-        st.write(f"**{team['country']}** - {team.get('points', 0)} pts")
-    
+    # Top Scorers
     st.subheader("🥅 Top Scorers")
-    st.write("S. Mane (Senegal) - 5 goals")
-    st.write("M. Salah (Egypt) - 4 goals")
+    matches = list(db.matches.find({"status": "completed"}))
+    all_goal_scorers = []
+    
+    for match in matches:
+        for goal in match.get('goal_scorers', []):
+            all_goal_scorers.append(goal)
+    
+    # Count goals by player
+    goal_counts = {}
+    for goal in all_goal_scorers:
+        player = goal['player']
+        goal_counts[player] = goal_counts.get(player, 0) + 1
+    
+    for player, goals in sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
+        st.write(f"**{player}** - {goals} goals")
 
 if __name__ == "__main__":
     main()
