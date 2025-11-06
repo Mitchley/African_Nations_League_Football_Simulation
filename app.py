@@ -219,7 +219,7 @@ def show_app():
             pages = ["🏠 Home", "🏆 Tournament", "📊 Statistics"]
         else:
             st.markdown(f"### 👋 Welcome, {st.session_state.user['email']}!")
-            pages = ["🏠 Home", "👨‍💼 Admin", "🏆 Tournament", "⚽ Matches", "📊 Statistics"] if st.session_state.role == "admin" else ["🏠 Home", "🇺🇳 Federation", "🏆 Tournament", "⚽ Matches", "📊 Statistics"]
+            pages = ["🏠 Home", "👨‍💼 Admin", "🏆 Tournament", "📈 Tournament Progress", "📊 Statistics"] if st.session_state.role == "admin" else ["🏠 Home", "🇺🇳 Federation", "🏆 Tournament", "📈 Tournament Progress", "📊 Statistics"]
         
         st.markdown("---")
         for page in pages:
@@ -237,7 +237,7 @@ def show_app():
 def show_current_page():
     page_mapping = {
         "🏠 Home": show_home, "👨‍💼 Admin": show_admin, "🇺🇳 Federation": show_federation,
-        "🏆 Tournament": show_tournament, "⚽ Matches": show_matches, "📊 Statistics": show_statistics
+        "🏆 Tournament": show_tournament, "📈 Tournament Progress": show_tournament_progress, "📊 Statistics": show_statistics
     }
     page_function = page_mapping.get(st.session_state.current_page, show_home)
     page_function()
@@ -259,9 +259,9 @@ def show_home():
     with col4: st.metric("Tournament Status", tournament.get('status', 'pending').title())
     
     st.markdown("---")
-    tab1, tab2, tab3, tab4 = st.tabs(["🏆 Teams", "⚽ Fixtures", "📊 Standings", "🎯 Top Scorers"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🏆 Teams", "📈 Tournament Progress", "📊 Standings", "🎯 Top Scorers"])
     with tab1: show_teams_section(teams)
-    with tab2: show_fixtures_section(matches, db)
+    with tab2: show_tournament_progress_section(matches, db)
     with tab3: show_standings_section(teams)
     with tab4: show_top_scorers_section(matches)
 
@@ -283,11 +283,17 @@ def show_teams_section(teams):
                 <p style='margin:5px 0;'><strong>Points:</strong> {team.get('points',0)}</p>
             </div>""", unsafe_allow_html=True)
 
-def show_fixtures_section(matches, db):
-    st.subheader("Tournament Fixtures")
+def show_tournament_progress_section(matches, db):
+    st.subheader("Tournament Progress")
     if not matches:
         st.info("No matches scheduled yet")
         return
+    
+    # Get tournament stage
+    tournament = db.tournaments.find_one({}) or {}
+    current_stage = tournament.get('current_stage', 'quarterfinal')
+    
+    st.info(f"**Current Stage: {current_stage.upper()}**")
     
     rounds = {}
     for match in matches:
@@ -296,26 +302,29 @@ def show_fixtures_section(matches, db):
             rounds[round_name] = []
         rounds[round_name].append(match)
     
-    for round_name, round_matches in rounds.items():
-        st.markdown(f"### {round_name.title()}")
-        for match in round_matches:
-            teamA_name, teamB_name = match.get('teamA_name', 'TBD'), match.get('teamB_name', 'TBD')
-            flag_a, flag_b = get_country_flag(teamA_name), get_country_flag(teamB_name)
-            
-            col1, col2, col3 = st.columns([3, 1, 3])
-            with col1: st.write(f"**{flag_a} {teamA_name}**")
-            with col2: st.write(f"**{match.get('scoreA',0)}-{match.get('scoreB',0)}**" if match.get('status') == 'completed' else "**VS**")
-            with col3: st.write(f"**{flag_b} {teamB_name}**")
-            
-            if match.get('status') == 'completed':
-                st.success(f"✅ Completed - {match.get('method','simulated').title()}")
-                if match.get('goal_scorers'):
-                    with st.expander("Goal Scorers"):
-                        for goal in match['goal_scorers']:
-                            st.write(f"⚽ {goal['player']} ({goal['minute']}') - {goal['team']}")
-            else:
-                st.info("🕐 Scheduled")
-            st.divider()
+    # Display matches by stage in order
+    stages_order = ['quarterfinal', 'semifinal', 'final']
+    for stage in stages_order:
+        if stage in rounds:
+            st.markdown(f"### {stage.upper().replace('FINAL', 'FINALS')}")
+            for match in rounds[stage]:
+                teamA_name, teamB_name = match.get('teamA_name', 'TBD'), match.get('teamB_name', 'TBD')
+                flag_a, flag_b = get_country_flag(teamA_name), get_country_flag(teamB_name)
+                
+                col1, col2, col3 = st.columns([3, 1, 3])
+                with col1: st.write(f"**{flag_a} {teamA_name}**")
+                with col2: st.write(f"**{match.get('scoreA',0)}-{match.get('scoreB',0)}**" if match.get('status') == 'completed' else "**VS**")
+                with col3: st.write(f"**{flag_b} {teamB_name}**")
+                
+                if match.get('status') == 'completed':
+                    st.success(f"✅ Completed - {match.get('method','simulated').title()}")
+                    if match.get('goal_scorers'):
+                        with st.expander("Goal Scorers"):
+                            for goal in match['goal_scorers']:
+                                st.write(f"⚽ {goal['player']} ({goal['minute']}') - {goal['team']}")
+                else:
+                    st.info("🕐 Scheduled")
+                st.divider()
 
 def show_standings_section(teams):
     st.subheader("Team Standings")
@@ -532,6 +541,7 @@ def show_tournament():
     st.subheader("ROAD TO THE FINAL")
     
     current_stage = tournament.get('current_stage', 'quarterfinal')
+    st.info(f"**Current Tournament Stage: {current_stage.upper()}**")
     
     col1, col2, col3 = st.columns([2, 1, 2])
     
@@ -544,11 +554,14 @@ def show_tournament():
             for i, match in enumerate(left_qf_matches):
                 display_match_card(match, f"Match {i+1}")
         else:
+            # Show actual teams if registered
             if len(teams) >= 2:
                 st.write("**Match 1:**")
                 flag1, flag2 = get_country_flag(teams[0]['country']), get_country_flag(teams[1]['country'])
                 st.write(f"• **{flag1} {teams[0]['country']}**")
                 st.write(f"• **{flag2} {teams[1]['country']}**")
+            else:
+                st.info("Waiting for teams to register...")
     
     with col3:
         st.markdown("### 🏁 Quarter Finals - Right Bracket")
@@ -558,11 +571,14 @@ def show_tournament():
             for i, match in enumerate(right_qf_matches):
                 display_match_card(match, f"Match {i+3}")
         else:
+            # Show actual teams if registered
             if len(teams) >= 4:
                 st.write("**Match 2:**")
                 flag3, flag4 = get_country_flag(teams[2]['country']), get_country_flag(teams[3]['country'])
                 st.write(f"• **{flag3} {teams[2]['country']}**")
                 st.write(f"• **{flag4} {teams[3]['country']}**")
+            else:
+                st.info("Waiting for teams to register...")
     
     with col2:
         st.markdown("### ⬆️ Semi Finals")
@@ -601,24 +617,64 @@ def display_match_card(match, title=""):
     with col2: st.write(f"**{match.get('scoreA',0)}-{match.get('scoreB',0)}**" if match.get('status') == 'completed' else "**VS**")
     with col3: st.write(f"**{flag_b} {teamB_name}**")
 
-def show_matches():
-    st.title("⚽ Matches & Fixtures")
+def show_tournament_progress():
+    st.title("📈 Tournament Progress")
     db = get_database()
     matches = list(db.matches.find({}))
+    tournament = db.tournaments.find_one({}) or {}
     
+    current_stage = tournament.get('current_stage', 'quarterfinal')
+    
+    # Tournament status card
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Current Stage", current_stage.upper())
+    with col2:
+        completed_matches = len([m for m in matches if m.get('status') == 'completed'])
+        st.metric("Matches Completed", f"{completed_matches}/{len(matches)}")
+    with col3:
+        st.metric("Tournament Status", tournament.get('status', 'pending').title())
+    
+    st.markdown("---")
+    
+    if not matches:
+        st.info("No matches scheduled yet. Tournament will begin when 8 teams are registered.")
+        return
+    
+    # Display matches by stage
+    rounds = {}
     for match in matches:
-        teamA_name, teamB_name = match.get('teamA_name', 'Team A'), match.get('teamB_name', 'Team B')
-        flag_a, flag_b = get_country_flag(teamA_name), get_country_flag(teamB_name)
-        
-        with st.expander(f"{flag_a} {teamA_name} vs {flag_b} {teamB_name}"):
-            if match.get('status') == 'completed':
-                st.success(f"**Final Score: {match['scoreA']}-{match['scoreB']}**")
-                if match.get('goal_scorers'):
-                    st.write("**Goal Scorers:**")
-                    for goal in match['goal_scorers']:
-                        st.write(f"- {goal['player']} ({goal['minute']}')")
-            else:
-                st.info("**Status:** Scheduled")
+        round_name = match.get('stage', 'unknown')
+        if round_name not in rounds:
+            rounds[round_name] = []
+        rounds[round_name].append(match)
+    
+    # Display stages in order
+    stages_order = ['quarterfinal', 'semifinal', 'final']
+    for stage in stages_order:
+        if stage in rounds:
+            st.markdown(f"## {stage.upper().replace('FINAL', 'FINALS')}")
+            
+            for match in rounds[stage]:
+                teamA_name, teamB_name = match.get('teamA_name', 'TBD'), match.get('teamB_name', 'TBD')
+                flag_a, flag_b = get_country_flag(teamA_name), get_country_flag(teamB_name)
+                
+                # Create a card for each match
+                if match.get('status') == 'completed':
+                    st.success(f"**{flag_a} {teamA_name} {match.get('scoreA', 0)} - {match.get('scoreB', 0)} {flag_b} {teamB_name}**")
+                    if match.get('goal_scorers'):
+                        with st.expander("Match Details"):
+                            st.write("**Goal Scorers:**")
+                            for goal in match['goal_scorers']:
+                                st.write(f"⚽ {goal['player']} ({goal['minute']}') - {goal['team']}")
+                            if match.get('method') == 'played' and match.get('commentary'):
+                                st.write("**Key Moments:**")
+                                for comment in match['commentary'][:5]:  # Show first 5 comments
+                                    st.write(f"• {comment}")
+                else:
+                    st.info(f"**{flag_a} {teamA_name} vs {flag_b} {teamB_name}** - Scheduled")
+                
+                st.divider()
 
 def show_statistics():
     st.title("📊 Statistics")
