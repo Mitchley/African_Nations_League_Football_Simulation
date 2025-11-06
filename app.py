@@ -35,6 +35,18 @@ def calculate_team_rating(squad):
     total_rating = sum(p["ratings"][p["naturalPosition"]] for p in squad)
     return round(total_rating / len(squad), 2)
 
+def get_country_flag(country):
+    """Get flag emoji for each country"""
+    flag_map = {
+        "Algeria": "🇩🇿", "Angola": "🇦🇴", "Benin": "🇧🇯", "Botswana": "🇧🇼",
+        "Burkina Faso": "🇧🇫", "Burundi": "🇧🇮", "Cameroon": "🇨🇲", "Cape Verde": "🇨🇻",
+        "DR Congo": "🇨🇩", "Egypt": "🇪🇬", "Ethiopia": "🇪🇹", "Ghana": "🇬🇭",
+        "Ivory Coast": "🇨🇮", "Kenya": "🇰🇪", "Morocco": "🇲🇦", "Mozambique": "🇲🇿",
+        "Nigeria": "🇳🇬", "Senegal": "🇸🇳", "South Africa": "🇿🇦", "Tanzania": "🇹🇿",
+        "Tunisia": "🇹🇳", "Uganda": "🇺🇬", "Zambia": "🇿🇲", "Zimbabwe": "🇿🇼"
+    }
+    return flag_map.get(country, "🏴")
+
 def main():
     st.set_page_config(page_title="African Nations League", layout="wide", page_icon="⚽")
     
@@ -332,15 +344,14 @@ def show_teams_section(teams):
         st.info("No teams registered yet")
         return
     
-    cols = st.columns(3)
+    # Display teams with flags only
+    cols = st.columns(4)  # 4 columns for better layout
     for i, team in enumerate(teams):
-        with cols[i % 3]:
+        with cols[i % 4]:
+            flag = get_country_flag(team['country'])
             st.markdown(f"""
-            <div style='border: 2px solid #1e3c72; border-radius: 10px; padding: 15px; margin: 10px 0; background: #f8f9fa;'>
-                <h4 style='margin:0; color: #1e3c72;'>{team['country']}</h4>
-                <p style='margin:5px 0;'><strong>Manager:</strong> {team.get('manager', 'Unknown')}</p>
-                <p style='margin:5px 0;'><strong>Rating:</strong> {team.get('rating', 75)}</p>
-                <p style='margin:5px 0;'><strong>Points:</strong> {team.get('points', 0)}</p>
+            <div style='border: 2px solid #1e3c72; border-radius: 10px; padding: 20px; margin: 10px 0; background: #f8f9fa; text-align: center;'>
+                <h3 style='margin:0; color: #1e3c72;'>{flag} {team['country']}</h3>
             </div>
             """, unsafe_allow_html=True)
 
@@ -365,13 +376,17 @@ def show_fixtures_section(matches, db):
             teamB_name = match.get('teamB_name', 'TBD')
             
             col1, col2, col3 = st.columns([3, 1, 3])
-            with col1: st.write(f"**{teamA_name}**")
+            with col1: 
+                flag_a = get_country_flag(teamA_name)
+                st.write(f"**{flag_a} {teamA_name}**")
             with col2:
                 if match.get('status') == 'completed':
                     st.write(f"**{match.get('scoreA', 0)} - {match.get('scoreB', 0)}**")
                 else:
                     st.write("**VS**")
-            with col3: st.write(f"**{teamB_name}**")
+            with col3: 
+                flag_b = get_country_flag(teamB_name)
+                st.write(f"**{flag_b} {teamB_name}**")
             
             if match.get('status') == 'completed':
                 st.success(f"✅ Completed - {match.get('method', 'simulated').title()}")
@@ -399,7 +414,9 @@ def show_standings_section(teams):
             elif i == 1: st.write("🥈")
             elif i == 2: st.write("🥉")
             else: st.write(f"#{i+1}")
-        with col2: st.write(f"**{team['country']}**")
+        with col2: 
+            flag = get_country_flag(team['country'])
+            st.write(f"**{flag} {team['country']}**")
         with col3: st.write(f"**{team.get('points', 0)}** pts")
         with col4: st.write(f"Rating: {team.get('rating', 75)}")
 
@@ -481,9 +498,13 @@ def show_live_sim(db):
             teamA_name, teamB_name = selected_match_info['teamA_name'], selected_match_info['teamB_name']
             
             col1, col2, col3 = st.columns([2, 1, 2])
-            with col1: st.markdown(f"### {teamA_name}")
+            with col1: 
+                flag_a = get_country_flag(teamA_name)
+                st.markdown(f"### {flag_a} {teamA_name}")
             with col2: st.markdown("### VS")
-            with col3: st.markdown(f"### {teamB_name}")
+            with col3: 
+                flag_b = get_country_flag(teamB_name)
+                st.markdown(f"### {flag_b} {teamB_name}")
             
             col1, col2 = st.columns(2)
             with col1:
@@ -565,7 +586,9 @@ def show_federation():
     
     if user_team:
         col1, col2, col3 = st.columns(3)
-        with col1: st.metric("Team", user_team['country'])
+        with col1: 
+            flag = get_country_flag(user_team['country'])
+            st.metric("Team", f"{flag} {user_team['country']}")
         with col2: st.metric("Manager", user_team.get('manager', 'Unknown'))
         with col3: st.metric("Rating", user_team.get('rating', 75))
         
@@ -598,8 +621,10 @@ def show_tournament():
         else:
             if len(teams) >= 2:
                 st.write("**Match 1:**")
-                st.write(f"• **{teams[0]['country']}**")
-                st.write(f"• **{teams[1]['country']}**")
+                flag1 = get_country_flag(teams[0]['country'])
+                flag2 = get_country_flag(teams[1]['country'])
+                st.write(f"• **{flag1} {teams[0]['country']}**")
+                st.write(f"• **{flag2} {teams[1]['country']}**")
     
     with col3:
         st.markdown("### 🏁 Quarter Finals - Right Bracket")
@@ -611,8 +636,10 @@ def show_tournament():
         else:
             if len(teams) >= 4:
                 st.write("**Match 2:**")
-                st.write(f"• **{teams[2]['country']}**")
-                st.write(f"• **{teams[3]['country']}**")
+                flag3 = get_country_flag(teams[2]['country'])
+                flag4 = get_country_flag(teams[3]['country'])
+                st.write(f"• **{flag3} {teams[2]['country']}**")
+                st.write(f"• **{flag4} {teams[3]['country']}**")
     
     with col2:
         st.markdown("### ⬆️ Semi Finals")
@@ -639,14 +666,22 @@ def display_match_card(match, title=""):
         score_a = match.get('scoreA', 0)
         score_b = match.get('scoreB', 0)
         col1, col2, col3 = st.columns([3, 1, 3])
-        with col1: st.write(f"**{teamA_name}**")
+        with col1: 
+            flag_a = get_country_flag(teamA_name)
+            st.write(f"**{flag_a} {teamA_name}**")
         with col2: st.write(f"**{score_a}-{score_b}**")
-        with col3: st.write(f"**{teamB_name}**")
+        with col3: 
+            flag_b = get_country_flag(teamB_name)
+            st.write(f"**{flag_b} {teamB_name}**")
     else:
         col1, col2, col3 = st.columns([3, 1, 3])
-        with col1: st.write(f"**{teamA_name}**")
+        with col1: 
+            flag_a = get_country_flag(teamA_name)
+            st.write(f"**{flag_a} {teamA_name}**")
         with col2: st.write("**VS**")
-        with col3: st.write(f"**{teamB_name}**")
+        with col3: 
+            flag_b = get_country_flag(teamB_name)
+            st.write(f"**{flag_b} {teamB_name}**")
 
 def show_matches():
     st.title("⚽ Matches & Fixtures")
@@ -655,7 +690,12 @@ def show_matches():
     matches = list(db.matches.find({}))
     
     for match in matches:
-        with st.expander(f"{match.get('teamA_name', 'Team A')} vs {match.get('teamB_name', 'Team B')}"):
+        teamA_name = match.get('teamA_name', 'Team A')
+        teamB_name = match.get('teamB_name', 'Team B')
+        flag_a = get_country_flag(teamA_name)
+        flag_b = get_country_flag(teamB_name)
+        
+        with st.expander(f"{flag_a} {teamA_name} vs {flag_b} {teamB_name}"):
             if match.get('status') == 'completed':
                 st.success(f"**Final Score: {match['scoreA']}-{match['scoreB']}**")
                 if match.get('goal_scorers'):
@@ -677,7 +717,9 @@ def show_statistics():
         for i, team in enumerate(teams):
             col1, col2, col3 = st.columns([1, 3, 2])
             with col1: st.write(f"**#{i+1}**")
-            with col2: st.write(f"**{team['country']}**")
+            with col2: 
+                flag = get_country_flag(team['country'])
+                st.write(f"**{flag} {team['country']}**")
             with col3: st.write(f"Points: **{team.get('points', 0)}**")
     
     st.markdown("---")
