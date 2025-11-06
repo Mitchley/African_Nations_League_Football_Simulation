@@ -232,13 +232,16 @@ def initialize_tournament(db):
     
     db.matches.delete_many({})
     
-    # Schedule quarter finals for all 8 teams
-    for i in range(0, 8, 2):
+    team_count = len(teams)
+    
+    # Create quarter final matches for all teams, even if we have an odd number
+    for i in range(0, team_count, 2):
+        teamA_index = i
+        teamB_index = i + 1
+        
         match_data = {
-            "teamA_id": teams[i]["_id"],
-            "teamA_name": teams[i]["country"],
-            "teamB_id": teams[i+1]["_id"],
-            "teamB_name": teams[i+1]["country"],
+            "teamA_id": teams[teamA_index]["_id"],
+            "teamA_name": teams[teamA_index]["country"],
             "stage": "quarterfinal",
             "status": "scheduled",
             "scoreA": 0,
@@ -248,6 +251,15 @@ def initialize_tournament(db):
             "method": "not_played",
             "created_at": datetime.now()
         }
+        
+        # Add second team if available, otherwise set to None
+        if teamB_index < team_count:
+            match_data["teamB_id"] = teams[teamB_index]["_id"]
+            match_data["teamB_name"] = teams[teamB_index]["country"]
+        else:
+            match_data["teamB_id"] = None
+            match_data["teamB_name"] = "None"
+        
         db.matches.insert_one(match_data)
     
     tournament_data = {
@@ -790,39 +802,4 @@ def show_statistics():
     
     # Team Standings
     st.subheader("🏆 Team Standings")
-    teams = list(db.federations.find({}).sort("points", -1))
-    
-    if teams:
-        for i, team in enumerate(teams):
-            col1, col2, col3 = st.columns([1, 3, 2])
-            with col1: st.write(f"**#{i+1}**")
-            with col2: 
-                flag = get_country_flag(team['country'])
-                st.write(f"**{flag} {team['country']}**")
-            with col3: st.write(f"Points: **{team.get('points', 0)}**")
-    
-    st.markdown("---")
-    
-    # Top Scorers
-    st.subheader("🥅 Top Scorers")
-    matches = list(db.matches.find({"status": "completed"}))
-    all_goal_scorers = []
-    
-    for match in matches:
-        if match.get('goal_scorers'):
-            all_goal_scorers.extend(match['goal_scorers'])
-    
-    goal_counts = {}
-    for goal in all_goal_scorers:
-        player = goal['player']
-        goal_counts[player] = goal_counts.get(player, 0) + 1
-    
-    if goal_counts:
-        sorted_scorers = sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)
-        for i, (player, goals) in enumerate(sorted_scorers[:5]):
-            st.write(f"{i+1}. **{player}** - {goals} goal{'s' if goals > 1 else ''}")
-    else:
-        st.info("No goals scored yet in the tournament")
-
-if __name__ == "__main__":
-    main()
+    teams = list(db.federations.find({}).
