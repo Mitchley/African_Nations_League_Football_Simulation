@@ -6,6 +6,14 @@ from datetime import datetime, timedelta
 
 load_dotenv()
 
+# Add actual African manager names
+AFRICAN_MANAGER_FIRST_NAMES = ["Aliou", "Djamel", "Hervé", "Carlos", "Tom", "Adel", "Walid", "Patrice", "Claude", "Amir"]
+AFRICAN_MANAGER_LAST_NAMES = ["Cissé", "Belmadi", "Renard", "Queiroz", "Saintfiet", "Amrouche", "Regragui", "Mayer", "Le Roy", "Abdou"]
+
+def get_random_manager_name():
+    """Generate realistic African manager names"""
+    return f"{random.choice(AFRICAN_MANAGER_FIRST_NAMES)} {random.choice(AFRICAN_MANAGER_LAST_NAMES)}"
+
 def initialize_database():
     print("🚀 Initializing African Nations League Database...")
     
@@ -52,18 +60,20 @@ def initialize_database():
     federation_ids = []
     
     for i, country in enumerate(countries[:7]):  # First 7 countries as pre-registered
-        # Create federation
+        # Create federation with actual manager name
         federation = {
             "country": country,
-            "manager": f"Manager of {country}",
-            "email": f"fed{country.lower().replace(' ', '')}@anleague.com",
+            "manager": get_random_manager_name(),  # ✅ FIXED: Use actual names
+            "representative_name": f"Rep of {country}",
+            "representative_email": f"fed{country.lower().replace(' ', '')}@anleague.com",
             "rating": random.randint(70, 85),
             "wins": 0,
             "losses": 0,
             "draws": 0,
             "goalsFor": 0,
             "goalsAgainst": 0,
-            "createdAt": datetime.utcnow()
+            "points": 0,
+            "registered_at": datetime.utcnow()
         }
         result = db.federations.insert_one(federation)
         federation_ids.append(result.inserted_id)
@@ -93,7 +103,7 @@ def initialize_database():
             players.append(player)
         
         db.players.insert_many(players)
-        print(f"  ✅ Created {country} with 23 players")
+        print(f"  ✅ Created {country} with manager {federation['manager']}")
 
     # Create tournament
     print("🏆 Creating tournament structure...")
@@ -133,12 +143,18 @@ def initialize_database():
             teamA_id = None
             teamB_id = None
             
+        # Get team names for display
+        teamA_name = db.federations.find_one({"_id": teamA_id})["country"] if teamA_id else None
+        teamB_name = db.federations.find_one({"_id": teamB_id})["country"] if teamB_id else None
+            
         match_data = {
             "tournamentId": tournament_id,
             "round": "quarterfinal",
             "matchNumber": i + 1,
             "teamA": teamA_id,
             "teamB": teamB_id,
+            "teamA_name": teamA_name,
+            "teamB_name": teamB_name,
             "scoreA": 0,
             "scoreB": 0,
             "winner": None,
@@ -162,8 +178,10 @@ def initialize_database():
             "tournamentId": tournament_id,
             "round": "semifinal",
             "matchNumber": i + 1,
-            "teamA": None,  # Will be filled by quarter-final winners
+            "teamA": None,
             "teamB": None,
+            "teamA_name": None,
+            "teamB_name": None,
             "scoreA": 0,
             "scoreB": 0,
             "winner": None,
@@ -185,8 +203,10 @@ def initialize_database():
         "tournamentId": tournament_id,
         "round": "final",
         "matchNumber": 1,
-        "teamA": None,  # Will be filled by semi-final winners
+        "teamA": None,
         "teamB": None,
+        "teamA_name": None,
+        "teamB_name": None,
         "scoreA": 0,
         "scoreB": 0,
         "winner": None,
@@ -261,8 +281,8 @@ def create_player(country, position, jersey_number, federation_id, is_captain=Fa
         "createdAt": datetime.utcnow()
     }
 
-def add_8th_team(country_name):
-    """Function to demonstrate adding the 8th team"""
+def add_8th_team(country_name, manager_name, rep_name, rep_email):
+    """Function to demonstrate adding the 8th team with actual manager name"""
     client = MongoClient(os.getenv('MONGODB_URI'))
     db = client['AfricanLeague']
     
@@ -271,18 +291,20 @@ def add_8th_team(country_name):
         print(f"❌ {country_name} already exists!")
         return False
     
-    # Create federation
+    # Create federation with actual manager name
     federation = {
         "country": country_name,
-        "manager": f"Manager of {country_name}",
-        "email": f"fed{country_name.lower().replace(' ', '')}@anleague.com",
+        "manager": manager_name,  # ✅ Use actual manager name
+        "representative_name": rep_name,
+        "representative_email": rep_email,
         "rating": random.randint(70, 85),
         "wins": 0,
         "losses": 0,
         "draws": 0,
         "goalsFor": 0,
         "goalsAgainst": 0,
-        "createdAt": datetime.utcnow()
+        "points": 0,
+        "registered_at": datetime.utcnow()
     }
     result = db.federations.insert_one(federation)
     
@@ -323,11 +345,11 @@ def add_8th_team(country_name):
     
     for match in empty_matches:
         if match.get('teamA') is None:
-            db.matches.update_one({"_id": match['_id']}, {"$set": {"teamA": result.inserted_id}})
+            db.matches.update_one({"_id": match['_id']}, {"$set": {"teamA": result.inserted_id, "teamA_name": country_name}})
         elif match.get('teamB') is None:
-            db.matches.update_one({"_id": match['_id']}, {"$set": {"teamB": result.inserted_id}})
+            db.matches.update_one({"_id": match['_id']}, {"$set": {"teamB": result.inserted_id, "teamB_name": country_name}})
     
-    print(f"✅ Successfully added {country_name} as the 8th team!")
+    print(f"✅ Successfully added {country_name} with manager {manager_name} as the 8th team!")
     print(f"📊 Tournament now has 8 teams - ready to start!")
     client.close()
     return True
@@ -335,5 +357,5 @@ def add_8th_team(country_name):
 if __name__ == "__main__":
     initialize_database()
     
-    # Uncomment the line below to demonstrate adding the 8th team
-    # add_8th_team("South Africa")
+    # Uncomment to demonstrate adding the 8th team with actual manager
+    # add_8th_team("South Africa", "Pitso Mosimane", "John Doe", "southafrica@anleague.com")
