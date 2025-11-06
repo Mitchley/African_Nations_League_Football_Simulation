@@ -649,4 +649,9 @@ def show_statistics():
             goal_counts[goal['player']] = goal_counts.get(goal['player'], 0) + 1
         
         for i, (player, goals) in enumerate(sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)[:5]):
-            st.write(f"{i+1}. **{player}** - {goals} goal{'s
+            st.write(f"{i+1}. **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+    else:
+        st.info("No goals scored yet in the tournament")
+
+if __name__ == "__main__":
+    main()
