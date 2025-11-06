@@ -232,6 +232,7 @@ def initialize_tournament(db):
     
     db.matches.delete_many({})
     
+    # Schedule quarter finals for all 8 teams
     for i in range(0, 8, 2):
         match_data = {
             "teamA_id": teams[i]["_id"],
@@ -255,6 +256,69 @@ def initialize_tournament(db):
         "created_at": datetime.now()
     }
     db.tournaments.update_one({}, {"$set": tournament_data}, upsert=True)
+
+def advance_tournament(db):
+    """Advance tournament to next stage when matches are completed"""
+    # Check if all quarter finals are completed
+    quarter_finals = list(db.matches.find({"stage": "quarterfinal"}))
+    if all(match.get('status') == 'completed' for match in quarter_finals):
+        # Create semi finals
+        winners = []
+        for match in quarter_finals:
+            if match['scoreA'] > match['scoreB']:
+                winners.append({"id": match['teamA_id'], "name": match['teamA_name']})
+            else:
+                winners.append({"id": match['teamB_id'], "name": match['teamB_name']})
+        
+        # Create semi final matches
+        for i in range(0, 4, 2):
+            match_data = {
+                "teamA_id": winners[i]["id"],
+                "teamA_name": winners[i]["name"],
+                "teamB_id": winners[i+1]["id"],
+                "teamB_name": winners[i+1]["name"],
+                "stage": "semifinal",
+                "status": "scheduled",
+                "scoreA": 0,
+                "scoreB": 0,
+                "goal_scorers": [],
+                "commentary": [],
+                "method": "not_played",
+                "created_at": datetime.now()
+            }
+            db.matches.insert_one(match_data)
+        
+        db.tournaments.update_one({}, {"$set": {"current_stage": "semifinal"}})
+    
+    # Check if all semi finals are completed
+    semi_finals = list(db.matches.find({"stage": "semifinal"}))
+    if all(match.get('status') == 'completed' for match in semi_finals):
+        # Create final
+        winners = []
+        for match in semi_finals:
+            if match['scoreA'] > match['scoreB']:
+                winners.append({"id": match['teamA_id'], "name": match['teamA_name']})
+            else:
+                winners.append({"id": match['teamB_id'], "name": match['teamB_name']})
+        
+        # Create final match
+        match_data = {
+            "teamA_id": winners[0]["id"],
+            "teamA_name": winners[0]["name"],
+            "teamB_id": winners[1]["id"],
+            "teamB_name": winners[1]["name"],
+            "stage": "final",
+            "status": "scheduled",
+            "scoreA": 0,
+            "scoreB": 0,
+            "goal_scorers": [],
+            "commentary": [],
+            "method": "not_played",
+            "created_at": datetime.now()
+        }
+        db.matches.insert_one(match_data)
+        
+        db.tournaments.update_one({}, {"$set": {"current_stage": "final"}})
 
 def show_app():
     if 'current_page' not in st.session_state:
@@ -421,6 +485,7 @@ def show_tournament_progress_section(matches, db):
                 # Add a subtle divider between matches
                 if i < len(stage_matches) - 1:
                     st.markdown("<hr style='margin: 10px 0; border: 0.5px solid #f0f0f0;'>", unsafe_allow_html=True)
+
 def show_standings_section(teams):
     st.subheader("Team Standings")
     if not teams:
@@ -532,9 +597,11 @@ def show_live_sim(db):
             with col1:
                 if st.button("🎮 Play Match", use_container_width=True):
                     play_match(db, selected_match_info['match'], teamA_name, teamB_name)
+                    advance_tournament(db)  # Check if we can advance tournament
             with col2:
                 if st.button("⚡ Simulate Match", use_container_width=True):
                     simulate_match_quick(db, selected_match_info['match'], teamA_name, teamB_name)
+                    advance_tournament(db)  # Check if we can advance tournament
 
 def play_match(db, match, teamA_name, teamB_name):
     st.info("🔄 Playing match with commentary...")
@@ -630,52 +697,38 @@ def show_tournament():
     st.header("AFRICAN NATIONS LEAGUE 2025")
     st.subheader("ROAD TO THE FINAL")
     
+    # Show all tournament stages
     col1, col2, col3 = st.columns([2, 1, 2])
     
     with col1:
-        st.markdown("### 🏁 Quarter Finals - Left Bracket")
+        st.markdown("### 🏁 Quarter Finals")
         qf_matches = [m for m in matches if m.get('stage') == 'quarterfinal']
-        left_qf_matches = qf_matches[:2] if len(qf_matches) >= 2 else []
-        
-        if left_qf_matches:
-            for i, match in enumerate(left_qf_matches):
-                display_match_card(match, f"Match {i+1}")
-        else:
-            if len(teams) >= 2:
-                st.write("**Match 1:**")
-                flag1 = get_country_flag(teams[0]['country'])
-                flag2 = get_country_flag(teams[1]['country'])
-                st.write(f"• **{flag1} {teams[0]['country']}**")
-                st.write(f"• **{flag2} {teams[1]['country']}**")
-    
-    with col3:
-        st.markdown("### 🏁 Quarter Finals - Right Bracket")
-        right_qf_matches = qf_matches[2:4] if len(qf_matches) >= 4 else []
-        
-        if right_qf_matches:
-            for i, match in enumerate(right_qf_matches):
-                display_match_card(match, f"Match {i+3}")
-        else:
-            if len(teams) >= 4:
-                st.write("**Match 2:**")
-                flag3 = get_country_flag(teams[2]['country'])
-                flag4 = get_country_flag(teams[3]['country'])
-                st.write(f"• **{flag3} {teams[2]['country']}**")
-                st.write(f"• **{flag4} {teams[3]['country']}**")
+        for i, match in enumerate(qf_matches):
+            display_match_card(match, f"Match {i+1}")
     
     with col2:
         st.markdown("### ⬆️ Semi Finals")
-        st.write("**SF 1:**")
-        st.write("👑 Winner QF 1")
-        st.write("👑 Winner QF 2")
-        st.write("**SF 2:**")
-        st.write("👑 Winner QF 3")
-        st.write("👑 Winner QF 4")
-        
-        st.markdown("---")
+        sf_matches = [m for m in matches if m.get('stage') == 'semifinal']
+        if sf_matches:
+            for i, match in enumerate(sf_matches):
+                display_match_card(match, f"SF {i+1}")
+        else:
+            st.write("**SF 1:**")
+            st.write("👑 Winner QF 1")
+            st.write("👑 Winner QF 2")
+            st.write("**SF 2:**")
+            st.write("👑 Winner QF 3")
+            st.write("👑 Winner QF 4")
+    
+    with col3:
         st.markdown("### 🏆 Final")
-        st.write("⭐ Winner SF 1")
-        st.write("⭐ Winner SF 2")
+        final_matches = [m for m in matches if m.get('stage') == 'final']
+        if final_matches:
+            for match in final_matches:
+                display_match_card(match, "Final")
+        else:
+            st.write("⭐ Winner SF 1")
+            st.write("⭐ Winner SF 2")
 
 def display_match_card(match, title=""):
     if title:
@@ -747,25 +800,4 @@ def show_statistics():
     st.markdown("---")
     
     # Top Scorers
-    st.subheader("🥅 Top Scorers")
-    matches = list(db.matches.find({"status": "completed"}))
-    all_goal_scorers = []
-    
-    for match in matches:
-        if match.get('goal_scorers'):
-            all_goal_scorers.extend(match['goal_scorers'])
-    
-    goal_counts = {}
-    for goal in all_goal_scorers:
-        player = goal['player']
-        goal_counts[player] = goal_counts.get(player, 0) + 1
-    
-    if goal_counts:
-        sorted_scorers = sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)
-        for i, (player, goals) in enumerate(sorted_scorers[:5]):
-            st.write(f"{i+1}. **{player}** - {goals} goal{'s' if goals > 1 else ''}")
-    else:
-        st.info("No goals scored yet in the tournament")
-
-if __name__ == "__main__":
-    main()
+    st.subheader("🥅
