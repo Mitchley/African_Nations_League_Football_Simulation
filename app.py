@@ -364,13 +364,13 @@ def show_tournament_progress_section(matches, db):
     # Group matches by stage
     rounds = {}
     for match in matches:
-        round_name = match.get('stage', 'group')
+        round_name = match.get('stage', 'quarterfinal')
         if round_name not in rounds:
             rounds[round_name] = []
         rounds[round_name].append(match)
     
     # Define the order of tournament stages
-    stage_order = ["group", "quarterfinal", "semifinal", "final"]
+    stage_order = ["quarterfinal", "semifinal", "final"]
     
     # Display matches in tournament stage order
     for stage in stage_order:
@@ -378,13 +378,14 @@ def show_tournament_progress_section(matches, db):
             stage_matches = rounds[stage]
             
             # Format stage name for display
-            stage_display_name = stage.replace("final", "Final").title()
             if stage == "quarterfinal":
                 stage_display_name = "Quarter Finals"
             elif stage == "semifinal":
                 stage_display_name = "Semi Finals"
-            elif stage == "group":
-                stage_display_name = "Group Stage"
+            elif stage == "final":
+                stage_display_name = "Final"
+            else:
+                stage_display_name = stage.title()
             
             st.markdown(f"### {stage_display_name}")
             
@@ -409,13 +410,17 @@ def show_tournament_progress_section(matches, db):
                     with col4:
                         if match.get('status') == 'completed':
                             st.success(f"✅ Completed")
+                            # Show goal scorers in expander for completed matches
+                            if match.get('goal_scorers'):
+                                with st.expander("Goal Scorers"):
+                                    for goal in match['goal_scorers']:
+                                        st.write(f"⚽ {goal['player']} ({goal['minute']}') - {goal['team']}")
                         else:
                             st.info("🕐 Scheduled")
                 
                 # Add a subtle divider between matches
                 if i < len(stage_matches) - 1:
                     st.markdown("<hr style='margin: 10px 0; border: 0.5px solid #f0f0f0;'>", unsafe_allow_html=True)
-
 def show_standings_section(teams):
     st.subheader("Team Standings")
     if not teams:
