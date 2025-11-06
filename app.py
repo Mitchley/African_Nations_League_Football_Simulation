@@ -800,4 +800,25 @@ def show_statistics():
     st.markdown("---")
     
     # Top Scorers
-    st.subheader("🥅
+    st.subheader("🥅 Top Scorers")
+    matches = list(db.matches.find({"status": "completed"}))
+    all_goal_scorers = []
+    
+    for match in matches:
+        if match.get('goal_scorers'):
+            all_goal_scorers.extend(match['goal_scorers'])
+    
+    goal_counts = {}
+    for goal in all_goal_scorers:
+        player = goal['player']
+        goal_counts[player] = goal_counts.get(player, 0) + 1
+    
+    if goal_counts:
+        sorted_scorers = sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)
+        for i, (player, goals) in enumerate(sorted_scorers[:5]):
+            st.write(f"{i+1}. **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+    else:
+        st.info("No goals scored yet in the tournament")
+
+if __name__ == "__main__":
+    main()
