@@ -1,24 +1,22 @@
 import streamlit as st
 import random
 from datetime import datetime
+from bson import ObjectId
 from frontend.utils.auth import init_session_state, login_user, logout_user
 from frontend.utils.database import get_database
+from backend.utils.match_simulator import MatchSimulator
+from backend.email_service import EmailService
+
+# Initialize services
+match_simulator = MatchSimulator()
+email_service = EmailService()
 
 init_session_state()
 
 AFRICAN_COUNTRIES = ["Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Cape Verde", "DR Congo", "Egypt", "Ethiopia", "Ghana", "Ivory Coast", "Kenya", "Morocco", "Mozambique", "Nigeria", "Senegal", "South Africa", "Tanzania", "Tunisia", "Uganda", "Zambia", "Zimbabwe"]
-
 AFRICAN_FIRST_NAMES = ["Mohamed", "Youssef", "Ahmed", "Kofi", "Kwame", "Adebayo", "Tendai", "Blessing", "Ibrahim", "Abdul", "Chinedu", "Faith"]
 AFRICAN_LAST_NAMES = ["Diallo", "Traore", "Mensah", "Adebayo", "Okafor", "Mohammed", "Ibrahim", "Kamara", "Sow", "Keita", "Ndiaye", "Conte"]
-
-COUNTRY_FLAGS = {
-    "Algeria": "🇩🇿", "Angola": "🇦🇴", "Benin": "🇧🇯", "Botswana": "🇧🇼",
-    "Burkina Faso": "🇧🇫", "Burundi": "🇧🇮", "Cameroon": "🇨🇲", "Cape Verde": "🇨🇻",
-    "DR Congo": "🇨🇩", "Egypt": "🇪🇬", "Ethiopia": "🇪🇹", "Ghana": "🇬🇭",
-    "Ivory Coast": "🇨🇮", "Kenya": "🇰🇪", "Morocco": "🇲🇦", "Mozambique": "🇲🇿",
-    "Nigeria": "🇳🇬", "Senegal": "🇸🇳", "South Africa": "🇿🇦", "Tanzania": "🇹🇿",
-    "Tunisia": "🇹🇳", "Uganda": "🇺🇬", "Zambia": "🇿🇲", "Zimbabwe": "🇿🇼"
-}
+COUNTRY_FLAGS = {country: "🇩🇿🇦🇴🇧🇯🇧🇼🇧🇫🇧🇮🇨🇲🇨🇻🇨🇩🇪🇬🇪🇹🇬🇭🇨🇮🇰🇪🇲🇦🇲🇿🇳🇬🇸🇳🇿🇦🇹🇿🇹🇳🇺🇬🇿🇲🇿🇼"[i*2:i*2+2] for i, country in enumerate(AFRICAN_COUNTRIES)}
 
 class Player:
     def __init__(self, name, position, is_captain=False):
@@ -38,6 +36,42 @@ def calculate_team_rating(squad):
 
 def get_country_flag(country):
     return COUNTRY_FLAGS.get(country, "🏴")
+
+def safe_objectid_conversion(obj_id):
+    if isinstance(obj_id, ObjectId):
+        return obj_id
+    try:
+        return ObjectId(obj_id)
+    except:
+        return obj_id
+
+def send_match_notifications(db, match_data):
+    """Send email notifications to both teams"""
+    try:
+        # Get team emails
+        team_a = db.federations.find_one({"_id": safe_objectid_conversion(match_data['teamA_id'])})
+        team_b = db.federations.find_one({"_id": safe_objectid_conversion(match_data['teamB_id'])})
+        
+        if team_a and team_b:
+            email_data = {
+                'teamA': match_data['teamA_name'],
+                'teamB': match_data['teamB_name'],
+                'scoreA': match_data['scoreA'],
+                'scoreB': match_data['scoreB'],
+                'stage': match_data['stage'],
+                'status': 'completed',
+                'goal_scorers': match_data.get('goal_scorers', [])
+            }
+            
+            # Send to team A
+            email_service.send_match_result(team_a['representative_email'], email_data)
+            # Send to team B
+            email_service.send_match_result(team_b['representative_email'], email_data)
+            
+            st.success("📧 Match notifications sent to both teams!")
+            
+    except Exception as e:
+        st.error(f"Failed to send notifications: {e}")
 
 def main():
     st.set_page_config(page_title="African Nations League", layout="wide", page_icon="⚽")
@@ -165,15 +199,26 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
             st.error("❌ Country already registered")
             return False
         
+        # Convert squad to dictionary format for storage
+        squad_dicts = []
+        for player in squad:
+            player_dict = {
+                "name": player.name,
+                "naturalPosition": player.position,
+                "isCaptain": player.is_captain,
+                "ratings": st.session_state.player_ratings.get(player.name, generate_player_ratings(player.position))
+            }
+            squad_dicts.append(player_dict)
+        
         db.users.insert_one({
             "email": rep_email, "password": password, "role": "federation", 
             "country": country, "created_at": datetime.now()
         })
         
-        team_rating = calculate_team_rating(squad)
+        team_rating = calculate_team_rating(squad_dicts)
         team_data = {
             "country": country, "manager": manager, "representative_name": rep_name,
-            "representative_email": rep_email, "rating": team_rating, "players": squad,
+            "representative_email": rep_email, "rating": team_rating, "players": squad_dicts,
             "points": 0, "registered_at": datetime.now()
         }
         db.federations.insert_one(team_data)
@@ -186,6 +231,8 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
         
         if 'squad' in st.session_state:
             del st.session_state.squad
+        if 'player_ratings' in st.session_state:
+            del st.session_state.player_ratings
         return True
         
     except Exception as e:
@@ -322,6 +369,11 @@ def show_tournament_progress_section(matches, db):
                         with st.expander("Goal Scorers"):
                             for goal in match['goal_scorers']:
                                 st.write(f"⚽ {goal['player']} ({goal['minute']}') - {goal['team']}")
+                    # Show AI commentary for played matches
+                    if match.get('method') == 'played' and match.get('commentary'):
+                        with st.expander("🎙️ Match Commentary"):
+                            for comment in match['commentary']:
+                                st.write(f"• {comment}")
                 else:
                     st.info("🕐 Scheduled")
                 st.divider()
@@ -371,7 +423,7 @@ def show_admin():
     with col1:
         if st.button("🚀 Start Tournament"):
             db.tournaments.update_one({}, {"$set": {"status": "active"}}, upsert=True)
-            st.success("Started!")
+            st.success("Tournament started!")
     with col2:
         if st.button("🔄 Reset Tournament"):
             db.matches.delete_many({})
@@ -391,8 +443,13 @@ def show_live_sim(db):
     
     match_options = []
     for match in matches:
-        teamA = db.federations.find_one({"_id": match['teamA_id']})
-        teamB = db.federations.find_one({"_id": match['teamB_id']})
+        # Safely handle team IDs
+        teamA_id = safe_objectid_conversion(match.get('teamA_id'))
+        teamB_id = safe_objectid_conversion(match.get('teamB_id'))
+        
+        teamA = db.federations.find_one({"_id": teamA_id})
+        teamB = db.federations.find_one({"_id": teamB_id})
+        
         if teamA and teamB:
             flag_a, flag_b = get_country_flag(teamA['country']), get_country_flag(teamB['country'])
             match_options.append({
@@ -400,6 +457,17 @@ def show_live_sim(db):
                 "display": f"{flag_a} {teamA['country']} vs {flag_b} {teamB['country']}",
                 "teamA_name": teamA['country'], 
                 "teamB_name": teamB['country']
+            })
+        else:
+            # If teams not found, use the stored names
+            teamA_name = match.get('teamA_name', 'Unknown Team')
+            teamB_name = match.get('teamB_name', 'Unknown Team')
+            flag_a, flag_b = get_country_flag(teamA_name), get_country_flag(teamB_name)
+            match_options.append({
+                "match": match, 
+                "display": f"{flag_a} {teamA_name} vs {flag_b} {teamB_name}",
+                "teamA_name": teamA_name, 
+                "teamB_name": teamB_name
             })
     
     if match_options:
@@ -414,300 +482,3 @@ def show_live_sim(db):
             with col1: st.markdown(f"### {flag_a} {teamA_name}")
             with col2: st.markdown("### VS")
             with col3: st.markdown(f"### {flag_b} {teamB_name}")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🎮 Play Match", use_container_width=True):
-                    play_match(db, selected_match_info['match'], teamA_name, teamB_name)
-            with col2:
-                if st.button("⚡ Simulate Match", use_container_width=True):
-                    simulate_match_quick(db, selected_match_info['match'], teamA_name, teamB_name)
-
-def play_match(db, match, teamA_name, teamB_name):
-    st.info("🔄 Playing match with commentary...")
-    commentary = [f"Match between {teamA_name} and {teamB_name} kicks off!"]
-    score_a, score_b = 0, 0
-    goal_scorers = []
-    
-    for minute in range(1, 91):
-        if random.random() < 0.05:
-            if random.random() < 0.5:
-                score_a += 1
-                commentary.append(f"{minute}' - GOAL! {teamA_name} scores!")
-                goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": minute, "team": teamA_name})
-            else:
-                score_b += 1
-                commentary.append(f"{minute}' - GOAL! {teamB_name} scores!")
-                goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": minute, "team": teamB_name})
-        elif random.random() < 0.08:
-            commentary.append(f"{minute}' - {random.choice(['Great save!', 'Corner kick', 'Yellow card', 'Close chance!'])}")
-    
-    db.matches.update_one({"_id": match["_id"]}, {"$set": {
-        "status": "completed", "scoreA": score_a, "scoreB": score_b,
-        "goal_scorers": goal_scorers, "commentary": commentary, "method": "played"
-    }})
-    update_tournament_progression(db, match)
-    st.success(f"✅ Match completed: {teamA_name} {score_a}-{score_b} {teamB_name}")
-    st.rerun()
-
-def simulate_match_quick(db, match, teamA_name, teamB_name):
-    score_a, score_b = random.randint(0, 3), random.randint(0, 3)
-    goal_scorers = []
-    for i in range(score_a):
-        goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": random.randint(1, 90), "team": teamA_name})
-    for i in range(score_b):
-        goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": random.randint(1, 90), "team": teamB_name})
-    
-    db.matches.update_one({"_id": match["_id"]}, {"$set": {
-        "status": "completed", "scoreA": score_a, "scoreB": score_b,
-        "goal_scorers": goal_scorers, "method": "simulated"
-    }})
-    update_tournament_progression(db, match)
-    st.success(f"✅ Match simulated: {teamA_name} {score_a}-{score_b} {teamB_name}")
-    st.rerun()
-
-def update_tournament_progression(db, completed_match):
-    current_stage = completed_match.get('stage')
-    winner_id = completed_match['teamA_id'] if completed_match['scoreA'] > completed_match['scoreB'] else completed_match['teamB_id']
-    winner_name = completed_match['teamA_name'] if completed_match['scoreA'] > completed_match['scoreB'] else completed_match['teamB_name']
-    
-    if current_stage == "quarterfinal":
-        quarterfinals = list(db.matches.find({"stage": "quarterfinal"}))
-        if len([m for m in quarterfinals if m.get('status') == 'completed']) == 4:
-            winners = []
-            for match in quarterfinals:
-                winner_id = match['teamA_id'] if match['scoreA'] > match['scoreB'] else match['teamB_id']
-                winner_name = match['teamA_name'] if match['scoreA'] > match['scoreB'] else match['teamB_name']
-                winners.append({"id": winner_id, "name": winner_name})
-            
-            for i in range(0, 4, 2):
-                match_data = {
-                    "teamA_id": winners[i]["id"], "teamA_name": winners[i]["name"],
-                    "teamB_id": winners[i+1]["id"], "teamB_name": winners[i+1]["name"],
-                    "stage": "semifinal", "status": "scheduled", "scoreA": 0, "scoreB": 0,
-                    "goal_scorers": [], "commentary": [], "method": "not_played", "created_at": datetime.now()
-                }
-                db.matches.insert_one(match_data)
-            db.tournaments.update_one({}, {"$set": {"current_stage": "semifinal"}})
-    
-    elif current_stage == "semifinal":
-        semifinals = list(db.matches.find({"stage": "semifinal"}))
-        if len([m for m in semifinals if m.get('status') == 'completed']) == 2:
-            winners = []
-            for match in semifinals:
-                winner_id = match['teamA_id'] if match['scoreA'] > match['scoreB'] else match['teamB_id']
-                winner_name = match['teamA_name'] if match['scoreA'] > match['scoreB'] else match['teamB_name']
-                winners.append({"id": winner_id, "name": winner_name})
-            
-            match_data = {
-                "teamA_id": winners[0]["id"], "teamA_name": winners[0]["name"],
-                "teamB_id": winners[1]["id"], "teamB_name": winners[1]["name"],
-                "stage": "final", "status": "scheduled", "scoreA": 0, "scoreB": 0,
-                "goal_scorers": [], "commentary": [], "method": "not_played", "created_at": datetime.now()
-            }
-            db.matches.insert_one(match_data)
-            db.tournaments.update_one({}, {"$set": {"current_stage": "final"}})
-
-def show_federation():
-    if st.session_state.role != 'federation':
-        st.info("👤 Federation access only")
-        return
-    
-    st.title("🇺🇳 My Federation")
-    db = get_database()
-    user_team = db.federations.find_one({"representative_email": st.session_state.user['email']})
-    
-    if user_team:
-        flag = get_country_flag(user_team['country'])
-        col1, col2, col3 = st.columns(3)
-        with col1: st.metric("Team", f"{flag} {user_team['country']}")
-        with col2: st.metric("Manager", user_team.get('manager', 'Unknown'))
-        with col3: st.metric("Rating", user_team.get('rating', 75))
-        
-        st.subheader("👥 My Squad")
-        for player in user_team.get('players', []):
-            captain = " ⭐" if player.get('isCaptain') else ""
-            rating = player['ratings'][player['naturalPosition']]
-            st.write(f"• {player['name']} ({player['naturalPosition']}) - Rating: {rating}{captain}")
-
-def show_tournament():
-    st.title("🏆 Tournament Bracket")
-    db = get_database()
-    teams = list(db.federations.find({}))
-    matches = list(db.matches.find({}))
-    tournament = db.tournaments.find_one({}) or {}
-    
-    st.header("AFRICAN NATIONS LEAGUE 2025")
-    st.subheader("ROAD TO THE FINAL")
-    
-    current_stage = tournament.get('current_stage', 'quarterfinal')
-    st.info(f"**Current Tournament Stage: {current_stage.upper()}**")
-    
-    col1, col2, col3 = st.columns([2, 1, 2])
-    
-    with col1:
-        st.markdown("### 🏁 Quarter Finals - Left Bracket")
-        qf_matches = [m for m in matches if m.get('stage') == 'quarterfinal']
-        left_qf_matches = qf_matches[:2] if len(qf_matches) >= 2 else []
-        
-        if left_qf_matches:
-            for i, match in enumerate(left_qf_matches):
-                display_match_card(match, f"Match {i+1}")
-        else:
-            # Show actual teams if registered
-            if len(teams) >= 2:
-                st.write("**Match 1:**")
-                flag1, flag2 = get_country_flag(teams[0]['country']), get_country_flag(teams[1]['country'])
-                st.write(f"• **{flag1} {teams[0]['country']}**")
-                st.write(f"• **{flag2} {teams[1]['country']}**")
-            else:
-                st.info("Waiting for teams to register...")
-    
-    with col3:
-        st.markdown("### 🏁 Quarter Finals - Right Bracket")
-        right_qf_matches = qf_matches[2:4] if len(qf_matches) >= 4 else []
-        
-        if right_qf_matches:
-            for i, match in enumerate(right_qf_matches):
-                display_match_card(match, f"Match {i+3}")
-        else:
-            # Show actual teams if registered
-            if len(teams) >= 4:
-                st.write("**Match 2:**")
-                flag3, flag4 = get_country_flag(teams[2]['country']), get_country_flag(teams[3]['country'])
-                st.write(f"• **{flag3} {teams[2]['country']}**")
-                st.write(f"• **{flag4} {teams[3]['country']}**")
-            else:
-                st.info("Waiting for teams to register...")
-    
-    with col2:
-        st.markdown("### ⬆️ Semi Finals")
-        sf_matches = [m for m in matches if m.get('stage') == 'semifinal']
-        
-        if sf_matches:
-            for i, match in enumerate(sf_matches):
-                display_match_card(match, f"SF {i+1}")
-        else:
-            st.write("**SF 1:**")
-            st.write("👑 Winner QF 1")
-            st.write("👑 Winner QF 2")
-            st.write("**SF 2:**")
-            st.write("👑 Winner QF 3")
-            st.write("👑 Winner QF 4")
-        
-        st.markdown("---")
-        st.markdown("### 🏆 Final")
-        final_match = next((m for m in matches if m.get('stage') == 'final'), None)
-        
-        if final_match:
-            display_match_card(final_match, "FINAL")
-        else:
-            st.write("⭐ Winner SF 1")
-            st.write("⭐ Winner SF 2")
-
-def display_match_card(match, title=""):
-    if title:
-        st.write(f"**{title}:**")
-    
-    teamA_name, teamB_name = match.get('teamA_name', 'Team A'), match.get('teamB_name', 'Team B')
-    flag_a, flag_b = get_country_flag(teamA_name), get_country_flag(teamB_name)
-    
-    col1, col2, col3 = st.columns([3, 1, 3])
-    with col1: st.write(f"**{flag_a} {teamA_name}**")
-    with col2: st.write(f"**{match.get('scoreA',0)}-{match.get('scoreB',0)}**" if match.get('status') == 'completed' else "**VS**")
-    with col3: st.write(f"**{flag_b} {teamB_name}**")
-
-def show_tournament_progress():
-    st.title("📈 Tournament Progress")
-    db = get_database()
-    matches = list(db.matches.find({}))
-    tournament = db.tournaments.find_one({}) or {}
-    
-    current_stage = tournament.get('current_stage', 'quarterfinal')
-    
-    # Tournament status card
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Current Stage", current_stage.upper())
-    with col2:
-        completed_matches = len([m for m in matches if m.get('status') == 'completed'])
-        st.metric("Matches Completed", f"{completed_matches}/{len(matches)}")
-    with col3:
-        st.metric("Tournament Status", tournament.get('status', 'pending').title())
-    
-    st.markdown("---")
-    
-    if not matches:
-        st.info("No matches scheduled yet. Tournament will begin when 8 teams are registered.")
-        return
-    
-    # Display matches by stage
-    rounds = {}
-    for match in matches:
-        round_name = match.get('stage', 'unknown')
-        if round_name not in rounds:
-            rounds[round_name] = []
-        rounds[round_name].append(match)
-    
-    # Display stages in order
-    stages_order = ['quarterfinal', 'semifinal', 'final']
-    for stage in stages_order:
-        if stage in rounds:
-            st.markdown(f"## {stage.upper().replace('FINAL', 'FINALS')}")
-            
-            for match in rounds[stage]:
-                teamA_name, teamB_name = match.get('teamA_name', 'TBD'), match.get('teamB_name', 'TBD')
-                flag_a, flag_b = get_country_flag(teamA_name), get_country_flag(teamB_name)
-                
-                # Create a card for each match
-                if match.get('status') == 'completed':
-                    st.success(f"**{flag_a} {teamA_name} {match.get('scoreA', 0)} - {match.get('scoreB', 0)} {flag_b} {teamB_name}**")
-                    if match.get('goal_scorers'):
-                        with st.expander("Match Details"):
-                            st.write("**Goal Scorers:**")
-                            for goal in match['goal_scorers']:
-                                st.write(f"⚽ {goal['player']} ({goal['minute']}') - {goal['team']}")
-                            if match.get('method') == 'played' and match.get('commentary'):
-                                st.write("**Key Moments:**")
-                                for comment in match['commentary'][:5]:  # Show first 5 comments
-                                    st.write(f"• {comment}")
-                else:
-                    st.info(f"**{flag_a} {teamA_name} vs {flag_b} {teamB_name}** - Scheduled")
-                
-                st.divider()
-
-def show_statistics():
-    st.title("📊 Statistics")
-    db = get_database()
-    
-    # Team Standings
-    st.subheader("🏆 Team Standings")
-    teams = list(db.federations.find({}).sort("points", -1))
-    
-    if teams:
-        for i, team in enumerate(teams):
-            flag = get_country_flag(team['country'])
-            col1, col2, col3 = st.columns([1, 3, 2])
-            with col1: st.write(f"**#{i+1}**")
-            with col2: st.write(f"**{flag} {team['country']}**")
-            with col3: st.write(f"Points: **{team.get('points', 0)}**")
-    
-    st.markdown("---")
-    
-    # Top Scorers
-    st.subheader("🥅 Top Scorers")
-    matches = list(db.matches.find({"status": "completed"}))
-    all_goal_scorers = [goal for match in matches if match.get('goal_scorers') for goal in match['goal_scorers']]
-    
-    if all_goal_scorers:
-        goal_counts = {}
-        for goal in all_goal_scorers:
-            goal_counts[goal['player']] = goal_counts.get(goal['player'], 0) + 1
-        
-        for i, (player, goals) in enumerate(sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)[:5]):
-            st.write(f"{i+1}. **{player}** - {goals} goal{'s' if goals > 1 else ''}")
-    else:
-        st.info("No goals scored yet in the tournament")
-
-if __name__ == "__main__":
-    main()
