@@ -364,13 +364,13 @@ def show_tournament_progress_section(matches, db):
     # Group matches by stage
     rounds = {}
     for match in matches:
-        round_name = match.get('stage', 'unknown')
+        round_name = match.get('stage', 'group')
         if round_name not in rounds:
             rounds[round_name] = []
         rounds[round_name].append(match)
     
     # Define the order of tournament stages
-    stage_order = ["quarterfinal", "semifinal", "final"]
+    stage_order = ["group", "quarterfinal", "semifinal", "final"]
     
     # Display matches in tournament stage order
     for stage in stage_order:
@@ -383,36 +383,38 @@ def show_tournament_progress_section(matches, db):
                 stage_display_name = "Quarter Finals"
             elif stage == "semifinal":
                 stage_display_name = "Semi Finals"
+            elif stage == "group":
+                stage_display_name = "Group Stage"
             
             st.markdown(f"### {stage_display_name}")
             
-            for match in stage_matches:
+            for i, match in enumerate(stage_matches):
                 teamA_name = match.get('teamA_name', 'TBD')
                 teamB_name = match.get('teamB_name', 'TBD')
                 
-                col1, col2, col3 = st.columns([3, 1, 3])
-                with col1: 
-                    flag_a = get_country_flag(teamA_name)
-                    st.write(f"**{flag_a} {teamA_name}**")
-                with col2:
-                    if match.get('status') == 'completed':
-                        st.write(f"**{match.get('scoreA', 0)} - {match.get('scoreB', 0)}**")
-                    else:
-                        st.write("**VS**")
-                with col3: 
-                    flag_b = get_country_flag(teamB_name)
-                    st.write(f"**{flag_b} {teamB_name}**")
+                # Create a container for each match with better styling
+                with st.container():
+                    col1, col2, col3, col4 = st.columns([3, 1, 3, 2])
+                    with col1: 
+                        flag_a = get_country_flag(teamA_name)
+                        st.write(f"**{flag_a} {teamA_name}**")
+                    with col2:
+                        if match.get('status') == 'completed':
+                            st.write(f"**{match.get('scoreA', 0)} - {match.get('scoreB', 0)}**")
+                        else:
+                            st.write("**VS**")
+                    with col3: 
+                        flag_b = get_country_flag(teamB_name)
+                        st.write(f"**{flag_b} {teamB_name}**")
+                    with col4:
+                        if match.get('status') == 'completed':
+                            st.success(f"✅ Completed")
+                        else:
+                            st.info("🕐 Scheduled")
                 
-                if match.get('status') == 'completed':
-                    st.success(f"✅ Completed - {match.get('method', 'simulated').title()}")
-                    if match.get('goal_scorers'):
-                        with st.expander("Goal Scorers"):
-                            for goal in match['goal_scorers']:
-                                st.write(f"⚽ {goal['player']} ({goal['minute']}') - {goal['team']}")
-                else:
-                    st.info("🕐 Scheduled")
-                
-                st.divider()
+                # Add a subtle divider between matches
+                if i < len(stage_matches) - 1:
+                    st.markdown("<hr style='margin: 10px 0; border: 0.5px solid #f0f0f0;'>", unsafe_allow_html=True)
 
 def show_standings_section(teams):
     st.subheader("Team Standings")
