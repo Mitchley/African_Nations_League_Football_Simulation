@@ -802,4 +802,36 @@ def show_statistics():
     
     # Team Standings
     st.subheader("🏆 Team Standings")
-    teams = list(db.federations.find({}).
+    teams = list(db.federations.find({}).sort("points", -1))
+    
+    if teams:
+        for i, team in enumerate(teams):
+            col1, col2, col3 = st.columns([1, 3, 2])
+            with col1: st.write(f"**#{i+1}**")
+            with col2: 
+                flag = get_country_flag(team['country'])
+                st.write(f"**{flag} {team['country']}**")
+            with col3: st.write(f"Points: **{team.get('points', 0)}**")
+    
+    st.markdown("---")
+    
+    # Top Scorers
+    st.subheader("🥅 Top Scorers")
+    matches = list(db.matches.find({"status": "completed"}))
+    all_goal_scorers = []
+    
+    for match in matches:
+        if match.get('goal_scorers'):
+            all_goal_scorers.extend(match['goal_scorers'])
+    
+    goal_counts = {}
+    for goal in all_goal_scorers:
+        player = goal['player']
+        goal_counts[player] = goal_counts.get(player, 0) + 1
+    
+    if goal_counts:
+        sorted_scorers = sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)
+        for i, (player, goals) in enumerate(sorted_scorers[:5]):
+            st.write(f"{i+1}. **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+    else:
+        st.info("No goals scored yet in the tournament")
