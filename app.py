@@ -455,7 +455,7 @@ def show_tournament_progress_section(matches, db):
             
             for i, match in enumerate(stage_matches):
                 teamA_name = match.get('teamA_name', 'TBD')
-                teamB_name = match.get('teamB_name', 'TBD')
+                teamB_name = match.get('teamB_name', 'None')  # Default to "None" if no team
                 
                 # Create a container for each match with better styling
                 with st.container():
@@ -469,8 +469,12 @@ def show_tournament_progress_section(matches, db):
                         else:
                             st.write("**VS**")
                     with col3: 
-                        flag_b = get_country_flag(teamB_name)
-                        st.write(f"**{flag_b} {teamB_name}**")
+                        # Only show flag if it's a real country, otherwise just show "None"
+                        if teamB_name != "None":
+                            flag_b = get_country_flag(teamB_name)
+                            st.write(f"**{flag_b} {teamB_name}**")
+                        else:
+                            st.write(f"**{teamB_name}**")
                     with col4:
                         if match.get('status') == 'completed':
                             st.success(f"✅ Completed")
