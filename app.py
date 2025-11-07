@@ -117,9 +117,9 @@ def show_federation_registration():
     if db is None: st.error("❌ Cannot access database"); return
     
     team_count = get_team_count()
-    st.info(f"📊 Teams registered: {team_count}/8")
+    #st.info(f"📊 Teams registered: {team_count}/8")
     progress = min(team_count / 8 * 100, 100)
-    st.markdown(f"""<div class="progress-bar"><div class="progress-fill" style="width: {progress}%"></div></div>""", unsafe_allow_html=True)
+    #st.markdown(f"""<div class="progress-bar"><div class="progress-fill" style="width: {progress}%"></div></div>""", unsafe_allow_html=True)
     
     if team_count >= 8: st.warning("🎯 Tournament full! New registrations will be waitlisted.")
     
