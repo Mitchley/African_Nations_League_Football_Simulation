@@ -504,47 +504,69 @@ def show_analytics(): show_statistics_content(True) if st.session_state.role == 
 def show_statistics(): show_statistics_content(False)
 
 def show_statistics_content(is_admin):
-    st.title("📊 Tournament Statistics"); db = get_database()
-    if db is None: st.error("Database unavailable"); return
+    st.title("📊 Tournament Statistics")
+    db = get_database()
+    if db is None: 
+        st.error("Database unavailable")
+        return
+    
     try:
-        st.subheader("🏆 Team Standings"); teams = list(db.federations.find({}).sort("rating", -1))
+        st.subheader("🏆 Team Standings")
+        teams = list(db.federations.find({}).sort("rating", -1))
         if teams:
             col1, col2 = st.columns([2, 1])
             with col1:
                 for i, team in enumerate(teams):
-                    flag = COUNTRY_FLAGS.get(team['country'], "🏴"); medal = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"{i+1}."
+                    flag = COUNTRY_FLAGS.get(team['country'], "🏴")
+                    medal = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"{i+1}."
                     st.markdown(f"""<div style="background: {'#fff3cd' if i < 3 else 'white'}; padding: 0.8rem; margin: 0.3rem 0; border-radius: 8px; border-left: 4px solid {'#FFD700' if i < 3 else '#1E3C72'};"><div style="display: flex; justify-content: space-between; align-items: center;"><span><strong>{medal} {flag} {team['country']}</strong></span><span style="color: #1E3C72; font-weight: bold; font-size: 1.1em;">{team.get('rating', 75)}</span></div></div>""", unsafe_allow_html=True)
             with col2:
                 if len(teams) >= 3:
                     for i in range(min(3, len(teams))):
-                        team = teams[i]; flag = COUNTRY_FLAGS.get(team['country'], "🏴")
+                        team = teams[i]
+                        flag = COUNTRY_FLAGS.get(team['country'], "🏴")
                         st.metric(f"{['🥇', '🥈', '🥉'][i]} {team['country']}", f"Rating: {team.get('rating', 75)}")
-        else: st.info("No teams registered yet")
-        
-        # Top Scorers section has been removed as requested
+        else:
+            st.info("No teams registered yet")
         
         st.subheader("📅 Match History")
+        # Get matches here - this was missing!
+        matches = list(db.matches.find({}))
+        
         if matches:
             completed_matches = [m for m in matches if m.get('status') == 'completed']
             if completed_matches:
                 for match in reversed(completed_matches[-10:]):
-                    flag_a = COUNTRY_FLAGS.get(match.get('teamA_name', 'Team A'), "🏴"); flag_b = COUNTRY_FLAGS.get(match.get('teamB_name', 'Team B'), "🏴")
+                    flag_a = COUNTRY_FLAGS.get(match.get('teamA_name', 'Team A'), "🏴")
+                    flag_b = COUNTRY_FLAGS.get(match.get('teamB_name', 'Team B'), "🏴")
                     with st.expander(f"{flag_a} {match['teamA_name']} {match['scoreA']}-{match['scoreB']} {match['teamB_name']} {flag_b} - {match.get('stage', 'Unknown').title()}", expanded=False):
                         col1, col2, col3 = st.columns(3)
-                        with col1: st.write(f"**{match['teamA_name']}**"); st.write(f"Goals: {match['scoreA']}")
-                        with col2: st.write("**Match Info**"); st.write(f"Stage: {match.get('stage', 'Unknown').title()}"); st.write(f"Method: {match.get('method', 'Unknown').title()}")
-                        with col3: st.write(f"**{match['teamB_name']}**"); st.write(f"Goals: {match['scoreB']}")
+                        with col1: 
+                            st.write(f"**{match['teamA_name']}**")
+                            st.write(f"Goals: {match['scoreA']}")
+                        with col2: 
+                            st.write("**Match Info**")
+                            st.write(f"Stage: {match.get('stage', 'Unknown').title()}")
+                            st.write(f"Method: {match.get('method', 'Unknown').title()}")
+                        with col3: 
+                            st.write(f"**{match['teamB_name']}**")
+                            st.write(f"Goals: {match['scoreB']}")
                         st.write("**Goal Scorers:**")
                         goal_scorers = match.get('goal_scorers', [])
                         if goal_scorers:
                             for goal in sorted(goal_scorers, key=lambda x: x['minute']):
-                                flag = COUNTRY_FLAGS.get(goal['team'], "🏴"); assist_info = goal.get('assist', 'Unassisted')
+                                flag = COUNTRY_FLAGS.get(goal['team'], "🏴")
+                                assist_info = goal.get('assist', 'Unassisted')
                                 st.write(f"• {goal['minute']}' - {flag} **{goal['player']}** ({goal['team']}) - {assist_info}")
-                        else: st.info("No goal details available")
-            else: st.info("No completed matches yet")
-        else: st.info("No matches played yet")
-    except Exception as e: st.error(f"Error loading statistics: {str(e)}")
-
+                        else:
+                            st.info("No goal details available")
+            else:
+                st.info("No completed matches yet")
+        else:
+            st.info("No matches played yet")
+            
+    except Exception as e:
+        st.error(f"Error loading statistics: {str(e)}")
 # Database helper functions
 def get_federations(query={}, **kwargs):
     try: db = get_database(); return list(db.federations.find(query, **kwargs)) if db is not None else []
