@@ -15,20 +15,22 @@ def login_user(email, password):
     """Authenticate user"""
     try:
         db = get_database()
-        if not db:
-            # Demo mode - allow admin login
-            if email == "admin@africanleague.com" and password == "admin123":
-                st.session_state.user = {"email": email, "role": "admin"}
-                st.session_state.role = "admin"
-                return True
-            return False
-            
-        user = db.users.find_one({"email": email, "password": password})
         
-        if user:
-            st.session_state.user = user
-            st.session_state.role = user.get('role', 'visitor')
+        # Check admin credentials from secrets first
+        admin_email = st.secrets["ADMIN_EMAIL"]
+        admin_password = st.secrets["ADMIN_PASSWORD"]
+        
+        if email == admin_email and password == admin_password:
+            st.session_state.user = {"email": email, "role": "admin"}
+            st.session_state.role = "admin"
             return True
+            
+        if db:
+            user = db.users.find_one({"email": email, "password": password})
+            if user:
+                st.session_state.user = user
+                st.session_state.role = user.get('role', 'visitor')
+                return True
         return False
         
     except Exception as e:
@@ -46,8 +48,7 @@ def register_user(email, password, role, country=None):
     try:
         db = get_database()
         if not db:
-            # In demo mode, allow registration
-            return True
+            return False
             
         # Check if user already exists
         if db.users.find_one({"email": email}):
