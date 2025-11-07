@@ -42,17 +42,33 @@ COUNTRY_FLAGS = {
 
 AFRICAN_COUNTRIES = list(COUNTRY_FLAGS.keys())
 
-# Professional CSS (hides Streamlit branding)
+# Enhanced CSS
 st.markdown("""
 <style>
     .main-header {
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        padding: 3rem;
+        padding: 2.5rem;
         border-radius: 20px;
         color: white;
         text-align: center;
         margin-bottom: 2rem;
         border: 4px solid #FFD700;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    }
+    .feature-card {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 0.5rem;
+        border: 2px solid #e0e0e0;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
     }
     .team-card {
         background: white;
@@ -109,6 +125,14 @@ st.markdown("""
         margin: 1rem 0;
         font-weight: bold;
     }
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        text-align: center;
+        margin: 0.5rem;
+    }
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -161,65 +185,190 @@ def main():
         st.error(f"Application error: {str(e)}")
 
 def show_login_page():
+    # Main header
     st.markdown("""
     <div class="main-header">
         <h1 style="margin:0; color: #FFD700; font-size: 3em;">🏆 AFRICAN NATIONS LEAGUE</h1>
-        <p style="margin:0; font-size: 1.5em;">Road to Glory 2025</p>
-        <p style="margin:0; font-size: 1em;">INF4001N: 2025 Entrance Exam Brief for 2026</p>
+        <p style="margin:0; font-size: 1.5em; font-weight: bold;">Road to Glory 2025</p>
+        <p style="margin:0; font-size: 1em;">The Ultimate African Football Tournament Experience</p>
     </div>
     """, unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["🔐 Admin Login", "🇺🇳 Federation Sign Up", "👤 Visitor Access"])
+    # Feature highlights
+    st.subheader("🎯 What You Can Do")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        <div class="feature-card">
+            <h3>⚽ Realistic Match Simulation</h3>
+            <p>Watch AI-powered matches with dynamic commentary and realistic outcomes</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="feature-card">
+            <h3>🌍 Represent Your Nation</h3>
+            <p>Register as a federation and lead your country to continental glory</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="feature-card">
+            <h3>📊 Live Tournament Tracking</h3>
+            <p>Follow the complete bracket from quarter-finals to championship</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Quick stats
+    db = safe_get_database()
+    team_count = safe_count_documents(db.federations) if db else 0
+    matches_played = len([m for m in safe_find(db.matches) if m.get('status') == 'completed']) if db else 0
+    
+    st.subheader("📈 Tournament Overview")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown(f"""
+        <div class="stats-card">
+            <h3 style="margin:0; font-size: 2em;">{team_count}</h3>
+            <p style="margin:0;">Teams Registered</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        status = "READY" if team_count >= 8 else "WAITING"
+        st.markdown(f"""
+        <div class="stats-card">
+            <h3 style="margin:0; font-size: 2em;">{'🏆' if team_count >= 8 else '⏳'}</h3>
+            <p style="margin:0;">{status}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class="stats-card">
+            <h3 style="margin:0; font-size: 2em;">{matches_played}</h3>
+            <p style="margin:0;">Matches Played</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(f"""
+        <div class="stats-card">
+            <h3 style="margin:0; font-size: 2em;">3</h3>
+            <p style="margin:0;">User Roles</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Authentication section
+    st.subheader("🔐 Get Started - Choose Your Role")
+    
+    tab1, tab2, tab3 = st.tabs(["👑 Admin Access", "🇺🇳 Federation Registration", "👀 Visitor Access"])
     
     with tab1:
-        st.subheader("Administrator Login")
+        st.write("**Tournament Management**")
+        st.info("Full control over tournament operations, match simulation, and analytics")
         with st.form("admin_login"):
-            email = st.text_input("Email", placeholder="admin@africanleague.com")
+            email = st.text_input("Admin Email", placeholder="admin@africanleague.com")
             password = st.text_input("Password", type="password")
-            if st.form_submit_button("🚀 Login as Admin", use_container_width=True):
+            if st.form_submit_button("🚀 Login as Administrator", use_container_width=True):
                 if login_user(email, password):
                     st.success("Welcome Admin!")
                     time.sleep(1)
                     st.rerun()
                 else:
-                    st.error("Invalid credentials")
+                    st.error("Invalid admin credentials")
     
     with tab2:
+        st.write("**Team Management**")
+        st.info("Register your national federation, build your squad, and compete for the title")
         show_federation_registration()
     
     with tab3:
-        st.subheader("Visitor Access")
-        st.info("Explore tournament matches, standings, and statistics")
-        if st.button("👀 Enter as Visitor", use_container_width=True, type="primary"):
-            st.session_state.user = {"email": "visitor", "role": "visitor"}
-            st.session_state.role = "visitor"
-            st.rerun()
+        st.write("**Public Access**")
+        st.info("Explore tournament matches, team standings, and player statistics")
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.write("As a visitor, you can:")
+            st.write("• 📊 View live tournament brackets")
+            st.write("• ⚽ Access match results and statistics")
+            st.write("• 🏅 Follow top scorers and team rankings")
+            st.write("• 🌍 Explore participating nations")
+        with col2:
+            if st.button("🎯 Enter as Visitor", use_container_width=True, type="primary", key="visitor_enter"):
+                st.session_state.user = {"email": "visitor", "role": "visitor"}
+                st.session_state.role = "visitor"
+                st.rerun()
+    
+    # Show registered teams if any
+    if db and team_count > 0:
+        st.markdown("---")
+        st.subheader("🇺🇳 Currently Registered Teams")
+        teams = safe_find(db.federations, {}, {"limit": 8, "sort": [("registered_at", -1)]})
+        
+        if teams:
+            cols = st.columns(4)
+            for i, team in enumerate(teams):
+                with cols[i % 4]:
+                    flag = COUNTRY_FLAGS.get(team['country'], "🏴")
+                    st.markdown(f"""
+                    <div class="team-card">
+                        <h3 style="margin:0; font-size: 2em;">{flag}</h3>
+                        <h4 style="margin:5px 0; color: #1E3C72;">{team['country']}</h4>
+                        <p style="margin:0; color: #666; font-size: 0.9em;">Rating: {team.get('rating', 75)}</p>
+                        <p style="margin:0; color: #888; font-size: 0.8em;">Manager: {team.get('manager', 'Unknown')}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        # Show tournament progress
+        if team_count >= 8:
+            st.success("🎊 Tournament ready to start! 8 teams have registered.")
+        else:
+            st.info(f"🔜 {8 - team_count} more teams needed to start the tournament")
 
 def show_federation_registration():
-    st.subheader("Federation Registration")
-    
+    """Show federation registration form"""
     db = safe_get_database()
     if db is None:
         st.error("❌ Cannot access database. Please check your MongoDB connection.")
         return
     
     team_count = safe_count_documents(db.federations)
-    st.info(f"📊 Teams registered: {team_count}/8")
+    
+    st.info(f"📊 Tournament Progress: {team_count}/8 teams registered")
+    
+    # Progress bar
+    progress = min(team_count / 8 * 100, 100)
+    st.markdown(f"""
+    <div class="progress-bar">
+        <div class="progress-fill" style="width: {progress}%"></div>
+    </div>
+    """, unsafe_allow_html=True)
     
     if team_count >= 8:
-        st.warning("🎯 Tournament full! New registrations will be waitlisted.")
+        st.warning("🎯 Tournament full! New registrations will be waitlisted for future tournaments.")
     
     with st.form("register_team"):
+        st.write("**Team Information**")
         col1, col2 = st.columns(2)
         with col1:
-            country = st.selectbox("Select Country", AFRICAN_COUNTRIES)
-            manager = st.text_input("Manager Name")
+            country = st.selectbox("Select Your Country", AFRICAN_COUNTRIES, key="country_select")
+            manager = st.text_input("Manager Name", placeholder="e.g., José Mourinho")
         with col2:
-            rep_name = st.text_input("Representative Name")
-            rep_email = st.text_input("Email")
+            rep_name = st.text_input("Your Name", placeholder="Federation Representative")
+            rep_email = st.text_input("Email Address", placeholder="your.email@federation.com")
             password = st.text_input("Password", type="password")
         
-        if st.form_submit_button("🚀 Register Federation", use_container_width=True):
+        st.write("💡 Your squad of 23 players will be automatically generated with realistic ratings")
+        
+        if st.form_submit_button("🚀 Register Federation & Generate Squad", use_container_width=True):
             if register_federation(country, manager, rep_name, rep_email, password):
                 st.success("Federation registered successfully!")
                 if login_user(rep_email, password):
@@ -234,29 +383,15 @@ def register_federation(country, manager, rep_name, rep_email, password):
             
         existing_team = db.federations.find_one({"country": country})
         if existing_team:
-            st.error("Country already registered")
+            st.error("❌ This country is already registered in the tournament")
             return False
         
         if not register_user(rep_email, password, "federation", country):
-            st.error("Registration failed")
+            st.error("❌ User registration failed")
             return False
         
-        # Auto-generate squad
-        squad = []
-        positions = {"GK": 3, "DF": 7, "MD": 8, "AT": 5}
-        for pos, count in positions.items():
-            for i in range(count):
-                player = {
-                    "name": f"Player {random.randint(1, 100)}",
-                    "naturalPosition": pos,
-                    "ratings": {p: random.randint(50, 100) if p == pos else random.randint(0, 50) for p in ["GK", "DF", "MD", "AT"]},
-                    "isCaptain": False
-                }
-                squad.append(player)
-        
-        if squad:
-            squad[0]["isCaptain"] = True
-        
+        # Auto-generate squad with realistic African names
+        squad = generate_realistic_squad()
         team_rating = sum(p["ratings"][p["naturalPosition"]] for p in squad) / len(squad)
         
         team_data = {
@@ -274,12 +409,44 @@ def register_federation(country, manager, rep_name, rep_email, password):
         if safe_count_documents(db.federations) >= 8:
             initialize_tournament(db)
             st.balloons()
-            st.success("🎊 Tournament started with 8 teams!")
+            st.success("🎊 Tournament started with 8 teams! Quarter-finals have been created.")
         
         return True
     except Exception as e:
-        st.error(f"Registration error: {str(e)}")
+        st.error(f"❌ Registration error: {str(e)}")
         return False
+
+def generate_realistic_squad():
+    """Generate a squad with realistic African player names"""
+    first_names = ["Mohamed", "Ibrahim", "Ahmed", "Youssef", "Samuel", "David", "Kwame", "Kofi", 
+                  "Chukwu", "Adebayo", "Musa", "Said", "Rashid", "Tendai", "Blessing", "Prince",
+                  "Emmanuel", "Daniel", "Joseph", "Victor", "Alex", "Boubacar", "Moussa", "Abdul"]
+    
+    last_names = ["Traore", "Diallo", "Keita", "Camara", "Sow", "Diop", "Ndiaye", "Gueye",
+                 "Mensah", "Appiah", "Owusu", "Adeyemi", "Okafor", "Okoro", "Mohammed", "Ali",
+                 "Hussein", "Juma", "Kamau", "Nkosi", "Zulu", "Van Wyk", "Silva", "Santos"]
+    
+    squad = []
+    positions = {"GK": 3, "DF": 7, "MD": 8, "AT": 5}
+    
+    for pos, count in positions.items():
+        for i in range(count):
+            first_name = random.choice(first_names)
+            last_name = random.choice(last_names)
+            player_name = f"{first_name} {last_name}"
+            
+            player = {
+                "name": player_name,
+                "naturalPosition": pos,
+                "ratings": {p: random.randint(50, 100) if p == pos else random.randint(0, 50) for p in ["GK", "DF", "MD", "AT"]},
+                "isCaptain": False
+            }
+            squad.append(player)
+    
+    if squad:
+        squad[0]["isCaptain"] = True
+    
+    return squad
 
 def show_app():
     with st.sidebar:
