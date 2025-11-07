@@ -141,47 +141,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-class DatabaseManager:
-    """Safe database operations with proper None checking"""
-    
-    @staticmethod
-    def get_db():
-        """Get database connection with proper error handling"""
-        try:
-            db = get_database()
-            # Proper None comparison for MongoDB objects
-            if db is None:
-                return None
-            # Test connection
-            db.command('ping')
-            return db
-        except Exception:
-            return None
-    
-    @staticmethod
-    def count(collection_name, query={}):
-        """Safely count documents in a collection"""
-        try:
-            db = DatabaseManager.get_db()
-            if db is None:
-                return 0
-            collection = db[collection_name]
-            return collection.count_documents(query)
-        except Exception:
-            return 0
-    
-    @staticmethod
-    def find(collection_name, query={}, **kwargs):
-        """Safely find documents in a collection"""
-        try:
-            db = DatabaseManager.get_db()
-            if db is None:
-                return []
-            collection = db[collection_name]
-            return list(collection.find(query, **kwargs))
-        except Exception:
-            return []
-
 def main():
     try:
         initialize_database()
@@ -234,9 +193,9 @@ def show_login_page():
     st.markdown("---")
     
     # Quick stats
-    db = DatabaseManager.get_db()
-    team_count = DatabaseManager.count('federations') if db is not None else 0
-    matches_played = len([m for m in DatabaseManager.find('matches') if m.get('status') == 'completed']) if db is not None else 0
+    db = get_database()
+    team_count = get_team_count() if db is not None else 0
+    matches_played = len([m for m in get_matches() if m.get('status') == 'completed']) if db is not None else 0
     
     st.subheader("📈 Tournament Overview")
     col1, col2, col3, col4 = st.columns(4)
@@ -309,7 +268,7 @@ def show_login_page():
     if db is not None and team_count > 0:
         st.markdown("---")
         st.subheader("🇺🇳 Currently Registered Teams")
-        teams = DatabaseManager.find('federations', {}, {"limit": 8, "sort": [("registered_at", -1)]})
+        teams = get_federations(limit=8)
         
         if teams:
             cols = st.columns(4)
@@ -333,12 +292,12 @@ def show_login_page():
 
 def show_federation_registration():
     """Show federation registration form"""
-    db = DatabaseManager.get_db()
+    db = get_database()
     if db is None:
         st.error("❌ Cannot access database. Please check your MongoDB connection.")
         return
     
-    team_count = DatabaseManager.count('federations')
+    team_count = get_team_count()
     
     st.info(f"📊 Teams registered: {team_count}/8")
     
@@ -371,7 +330,7 @@ def show_federation_registration():
 
 def register_federation(country, manager, rep_name, rep_email, password):
     try:
-        db = DatabaseManager.get_db()
+        db = get_database()
         if db is None:
             st.error("Database unavailable")
             return False
@@ -401,7 +360,7 @@ def register_federation(country, manager, rep_name, rep_email, password):
         
         db.federations.insert_one(team_data)
         
-        if DatabaseManager.count('federations') >= 8:
+        if get_team_count() >= 8:
             initialize_tournament(db)
             st.balloons()
             st.success("🎊 Tournament started with 8 teams!")
@@ -483,23 +442,27 @@ def show_app():
         show_statistics()
 
 def show_home_dashboard():
-    db = DatabaseManager.get_db()
+    db = get_database()
     
     if db is None:
         st.error("❌ Database connection failed")
         return
     
+    # Welcome header
     st.markdown("""
     <div class="main-header">
-        <h1 style="margin:0; color: #FFD700; font-size: 2.8em;">🏆 AFRICAN NATIONS LEAGUE</h1>
+        <h1 style="margin:0; color: #FFD700; font-size: 2.8em;">🏆 WELCOME TO AFRICAN NATIONS LEAGUE 2024</h1>
         <p style="margin:0; font-size: 1.3em; font-weight: bold;">Tournament Dashboard</p>
     </div>
     """, unsafe_allow_html=True)
     
-    teams = DatabaseManager.find('federations', {}, {"sort": [("rating", -1)]})
-    matches = DatabaseManager.find('matches')
+    # TOURNAMENT OVERVIEW - Moved to main content area
+    st.subheader("📊 Tournament Overview")
+    
+    teams = get_federations()
+    matches = get_matches()
     completed_matches = [m for m in matches if m.get('status') == 'completed']
-    tournament_data = DatabaseManager.find('tournaments', {})
+    tournament_data = get_tournaments()
     tournament = tournament_data[0] if tournament_data else {}
     
     col1, col2, col3, col4 = st.columns(4)
@@ -558,7 +521,7 @@ def show_home_dashboard():
             st.info("No matches played yet")
     
     with col2:
-        st.subheader("📊 Tournament Progress")
+        st.subheader("📈 Tournament Progress")
         total_matches = len(matches)
         completed_count = len(completed_matches)
         
@@ -616,13 +579,13 @@ def show_home_dashboard():
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("🚀 Start Tournament", use_container_width=True):
-                db = DatabaseManager.get_db()
+                db = get_database()
                 if db is not None:
                     initialize_tournament(db)
                 st.rerun()
         with col2:
             if st.button("⚡ Simulate All", use_container_width=True):
-                db = DatabaseManager.get_db()
+                db = get_database()
                 if db is not None:
                     simulate_all_matches(db)
                 st.rerun()
@@ -639,7 +602,7 @@ def show_tournament_bracket():
     </div>
     """, unsafe_allow_html=True)
     
-    db = DatabaseManager.get_db()
+    db = get_database()
     if db is None:
         st.error("❌ Database unavailable")
         return
@@ -647,8 +610,8 @@ def show_tournament_bracket():
     show_enhanced_tournament_bracket(db)
 
 def show_enhanced_tournament_bracket(db):
-    matches = DatabaseManager.find('matches')
-    tournament_data = DatabaseManager.find('tournaments', {})
+    matches = get_matches()
+    tournament_data = get_tournaments()
     tournament = tournament_data[0] if tournament_data else {}
     
     col1, col2, col3 = st.columns(3)
@@ -669,7 +632,7 @@ def show_enhanced_tournament_bracket(db):
     if not matches:
         st.info("🎯 Tournament not started. Admin can start when 8 teams are registered.")
         
-        teams = DatabaseManager.find('federations')
+        teams = get_federations()
         if len(teams) >= 8:
             st.subheader("🎊 Ready to Start! Here's how the bracket would look:")
             random.shuffle(teams)
@@ -879,7 +842,7 @@ def show_match_control():
         return
     
     st.title("⚽ Match Control Center")
-    db = DatabaseManager.get_db()
+    db = get_database()
     if db is None:
         st.error("Database unavailable")
         return
@@ -905,7 +868,7 @@ def show_match_control():
             st.rerun()
     
     st.subheader("🎮 Match Simulation")
-    scheduled_matches = DatabaseManager.find('matches', {"status": "scheduled"})
+    scheduled_matches = get_matches({"status": "scheduled"})
     
     if scheduled_matches:
         for match in scheduled_matches:
@@ -923,7 +886,7 @@ def show_match_control():
 
 def play_match_with_commentary(match):
     try:
-        db = DatabaseManager.get_db()
+        db = get_database()
         if db is None:
             st.error("Database unavailable")
             return
@@ -951,7 +914,7 @@ def play_match_with_commentary(match):
         simulate_match_quick(match)
 
 def simulate_match_quick(match):
-    db = DatabaseManager.get_db()
+    db = get_database()
     if db is None:
         st.error("Database unavailable")
         return
@@ -1085,7 +1048,7 @@ def show_my_team():
         st.info("Federation access required")
         return
     
-    db = DatabaseManager.get_db()
+    db = get_database()
     if db is None:
         st.error("Database unavailable")
         return
@@ -1130,7 +1093,7 @@ def show_statistics():
 
 def show_statistics_content(is_admin):
     st.title("📊 Tournament Statistics")
-    db = DatabaseManager.get_db()
+    db = get_database()
     
     if db is None:
         st.error("Database unavailable")
@@ -1195,6 +1158,37 @@ def show_statistics_content(is_admin):
             
     except Exception as e:
         st.error(f"Error loading statistics: {str(e)}")
+
+# Database helper functions to replace DatabaseManager
+def get_federations(query={}, **kwargs):
+    """Safely get federations from database"""
+    try:
+        db = get_database()
+        if db is None:
+            return []
+        return list(db.federations.find(query, **kwargs))
+    except Exception:
+        return []
+
+def get_matches(query={}):
+    """Safely get matches from database"""
+    try:
+        db = get_database()
+        if db is None:
+            return []
+        return list(db.matches.find(query))
+    except Exception:
+        return []
+
+def get_tournaments():
+    """Safely get tournaments from database"""
+    try:
+        db = get_database()
+        if db is None:
+            return []
+        return list(db.tournaments.find({}))
+    except Exception:
+        return []
 
 if __name__ == "__main__":
     main()
