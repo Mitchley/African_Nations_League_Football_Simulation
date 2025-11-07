@@ -1227,11 +1227,11 @@ def simulate_all_matches(db):
     try:
         scheduled = list(db.matches.find({"status": "scheduled"}))
         for match in scheduled:
+            # Use quick simulation for batch processing
             simulate_match_quick(match)
         st.success("All matches simulated!")
     except Exception as e:
         st.error(f"Simulation failed: {str(e)}")
-
 def show_my_team():
     if st.session_state.role != 'federation':
         st.info("Federation access required")
