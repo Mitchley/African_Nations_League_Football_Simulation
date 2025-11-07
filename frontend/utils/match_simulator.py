@@ -1,4 +1,5 @@
 import random
+from datetime import datetime
 from frontend.utils.ai_commentary import get_ai_commentary_generator
 from backend.email_service import notify_federations_after_match
 
@@ -7,9 +8,9 @@ def simulate_match_with_commentary(db, match_id, teamA_name, teamB_name):
     ai_generator = get_ai_commentary_generator()
     
     # Get team ratings for more realistic simulation
-    match = db.matches.find_one({"_id": match_id})
-    teamA = db.federations.find_one({"_id": match['teamA_id']})
-    teamB = db.federations.find_one({"_id": match['teamB_id']})
+    match = db.matches.find_one({"_id": match_id}) if db else None
+    teamA = db.federations.find_one({"_id": match['teamA_id']}) if db and match else None
+    teamB = db.federations.find_one({"_id": match['teamB_id']}) if db and match else None
     
     ratingA = teamA.get('rating', 75) if teamA else 75
     ratingB = teamB.get('rating', 75) if teamB else 75
@@ -61,20 +62,22 @@ def simulate_match_with_commentary(db, match_id, teamA_name, teamB_name):
     ai_commentary = ai_generator.generate_commentary(teamA_name, teamB_name, match_events)
     commentary.extend(ai_commentary)
     
-    # Update match in database
-    db.matches.update_one(
-        {"_id": match_id},
-        {"$set": {
-            "status": "completed",
-            "scoreA": score_a,
-            "scoreB": score_b,
-            "goal_scorers": goal_scorers,
-            "commentary": commentary,
-            "method": "played"
-        }}
-    )
+    # Update match in database if available
+    if db:
+        db.matches.update_one(
+            {"_id": match_id},
+            {"$set": {
+                "status": "completed",
+                "scoreA": score_a,
+                "scoreB": score_b,
+                "goal_scorers": goal_scorers,
+                "commentary": commentary,
+                "method": "played"
+            }}
+        )
     
     # Send email notifications
-    notify_federations_after_match(match_id)
+    if db:
+        notify_federations_after_match(match_id)
     
     return score_a, score_b, goal_scorers, commentary
