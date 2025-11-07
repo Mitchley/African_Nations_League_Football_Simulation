@@ -1,11 +1,12 @@
 import random
-import requests
 import os
+import streamlit as st
 from frontend.utils.database import get_database
 
 class AICommentaryGenerator:
     def __init__(self):
-        self.api_key = os.getenv('OPENAI_API_KEY')
+        # Get API key from Streamlit secrets, not hardcoded
+        self.api_key = st.secrets.get("OPENAI_API_KEY", "")
         self.use_real_ai = bool(self.api_key)
     
     def generate_commentary(self, teamA, teamB, match_events):
@@ -18,25 +19,8 @@ class AICommentaryGenerator:
     def _generate_openai_commentary(self, teamA, teamB, match_events):
         """Generate commentary using OpenAI GPT"""
         try:
-            prompt = f"""
-            Generate exciting football match commentary for an African Nations League match between {teamA} and {teamB}.
-            
-            Match Events: {match_events}
-            
-            Create realistic, passionate commentary with African football flair. Include:
-            - Exciting play-by-play descriptions
-            - Cultural references to African football
-            - Emotional reactions to goals and key moments
-            - Commentary about player performances
-            - Atmosphere descriptions
-            
-            Return 8-12 commentary lines in bullet points.
-            """
-            
-            # This is a placeholder - you'd integrate with actual OpenAI API
-            response = f"AI Commentary for {teamA} vs {teamB}: Exciting African football action!"
-            
-            # Split into individual commentary lines
+            # This would be your actual OpenAI API call
+            # For security, the API key comes from secrets
             commentary_lines = [
                 f"The African Nations League clash between {teamA} and {teamB} kicks off with great energy!",
                 f"Beautiful passing football on display from these African giants!",
