@@ -1,7 +1,6 @@
 import random
 from datetime import datetime
 from frontend.utils.ai_commentary import get_ai_commentary_generator
-from backend.email_service import notify_federations_after_match
 
 def simulate_match_with_commentary(db, match_id, teamA_name, teamB_name):
     """Enhanced match simulation with AI commentary"""
@@ -76,7 +75,8 @@ def simulate_match_with_commentary(db, match_id, teamA_name, teamB_name):
             }}
         )
     
-    # Send email notifications
+    # Send email notifications (import here to avoid circular imports)
+    from backend.email_service import notify_federations_after_match
     notify_federations_after_match(match_id)
     
     return score_a, score_b, goal_scorers, commentary
