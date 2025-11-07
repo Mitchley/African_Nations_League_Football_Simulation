@@ -63,6 +63,7 @@ def main():
         if not st.session_state.get('user'):
             show_login_page()
         else:
+            # Set home dashboard as default landing page for all users after login
             if 'current_page' not in st.session_state:
                 st.session_state.current_page = "🏠 Home Dashboard"
             show_app()
@@ -80,18 +81,18 @@ def show_login_page():
     st.subheader("🎯 What You Can Do")
     col1, col2, col3 = st.columns(3)
     with col1: st.markdown("""<div class="feature-card"><h3>⚽ Realistic Match Simulation</h3><p>AI-powered matches with realistic outcomes</p></div>""", unsafe_allow_html=True)
-    with col2: st.markdown("""<div class="feature-card"><h3>🌍 Represent Your Nation</h3><p>Lead your country to continental glory by registering and participating in the tournament</p></div>""", unsafe_allow_html=True)
+    with col2: st.markdown("""<div class="feature-card"><h3>🌍 Represent Your Nation</h3><p>Lead your country to continental glory</p></div>""", unsafe_allow_html=True)
     with col3: st.markdown("""<div class="feature-card"><h3>📊 Live Tournament Tracking</h3><p>Follow the complete tournament bracket</p></div>""", unsafe_allow_html=True)
     
     st.markdown("---")
     st.subheader("🔐 Get Started - Choose Your Role")
     
-    tab1, tab2, tab3 = st.tabs([" Admin Login", " Federation Sign Up", " Visitor Access"])
+    tab1, tab2, tab3 = st.tabs(["👑 Admin Login", "🇺🇳 Federation Sign Up", "👀 Visitor Access"])
     with tab1:
         with st.form("admin_login"):
             email = st.text_input("Email", placeholder="admin@africanleague.com")
             password = st.text_input("Password", type="password")
-            if st.form_submit_button(" Login as Admin", use_container_width=True):
+            if st.form_submit_button("🚀 Login as Admin", use_container_width=True):
                 if login_user(email, password):
                     st.success("Welcome Admin!"); time.sleep(1); st.rerun()
                 else: st.error("Invalid credentials")
@@ -103,7 +104,7 @@ def show_login_page():
         if st.button("👀 Enter as Visitor", use_container_width=True, type="primary"):
             st.session_state.user = {"email": "visitor", "role": "visitor"}
             st.session_state.role = "visitor"
-            st.session_state.current_page = "🏠 Home Dashboard"
+            st.session_state.current_page = "🏠 Home Dashboard"  # Set home as default
             st.rerun()
 
 def show_federation_registration():
@@ -520,7 +521,8 @@ def show_statistics_content(is_admin):
                         st.metric(f"{['🥇', '🥈', '🥉'][i]} {team['country']}", f"Rating: {team.get('rating', 75)}")
         else: st.info("No teams registered yet")
         
-             
+        # Top Scorers section has been removed as requested
+        
         st.subheader("📅 Match History")
         if matches:
             completed_matches = [m for m in matches if m.get('status') == 'completed']
