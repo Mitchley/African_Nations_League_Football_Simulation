@@ -363,11 +363,12 @@ def initialize_tournament(db):
     teams = list(db.federations.find({}).limit(8))
     
     if len(teams) < 8:
-        st.error(f"Need 8 teams to start tournament. Currently have {len(teams)} teams.")
+        st.error(f"❌ Need 8 teams to start tournament. Currently have {len(teams)} teams.")
         return
     
     random.shuffle(teams)
     
+    # Clear existing matches
     db.matches.delete_many({})
     
     # Create quarter-final matches
@@ -390,15 +391,18 @@ def initialize_tournament(db):
         }
         db.matches.insert_one(match_data)
     
+    # Create or update tournament document
     tournament_data = {
         "status": "active",
         "current_stage": "quarterfinal",
         "total_teams": 8,
-        "started_at": datetime.now()
+        "started_at": datetime.now(),
+        "updated_at": datetime.now()
     }
     db.tournaments.update_one({}, {"$set": tournament_data}, upsert=True)
     
-    st.success("🎊 Tournament bracket created with 4 quarter-final matches!")
+    st.success("🎊 Tournament started successfully! 4 quarter-final matches created.")
+    return True
 
 def show_app():
     if 'current_page' not in st.session_state:
@@ -453,27 +457,159 @@ def show_dashboard():
     db = get_database()
     
     if db is None:
-        st.error("❌ Cannot connect to database.")
+        st.error("❌ Cannot connect to database. Please check your MongoDB connection.")
         return
     
+    # Get data once to avoid multiple queries
     team_count = db.federations.count_documents({})
     matches = list(db.matches.find({}))
     completed_matches = len([m for m in matches if m.get('status') == 'completed'])
     tournament = db.tournaments.find_one({}) or {}
+    current_stage = tournament.get('current_stage', 'Not Started')
+    tournament_status = tournament.get('status', 'pending')
     
-    st.success(f"✅ Connected to database with {team_count} teams!")
+    # Single clean connection status
+    if is_database_available():
+        st.success(f"✅ Connected to African League database with {team_count} teams")
+    else:
+        st.error("❌ Database connection failed")
+        return
+    
+    # Main metrics in a clean layout
+    st.markdown("---")
+    st.subheader("📊 Tournament Overview")
     
     col1, col2, col3, col4 = st.columns(4)
-    with col1: st.metric("Total Teams", team_count)
-    with col2: st.metric("Matches Played", completed_matches)
-    with col3: st.metric("Tournament Status", tournament.get('status', 'pending').title())
-    with col4: st.metric("Current Stage", tournament.get('current_stage', 'Not Started').title())
+    with col1: 
+        st.metric("Total Teams", team_count)
+    with col2: 
+        st.metric("Matches Played", completed_matches)
+    with col3: 
+        # Better status display
+        status_display = "Active" if tournament_status == "active" else "Ready" if team_count >= 8 else "Pending"
+        status_color = "🟢" if status_display == "Active" else "🟡" if status_display == "Ready" else "⚪"
+        st.metric("Tournament Status", f"{status_color} {status_display}")
+    with col4: 
+        # Better stage display
+        stage_display = current_stage.replace('_', ' ').title() if current_stage != 'Not Started' else 'Not Started'
+        stage_icon = "🎯" if "quarter" in current_stage.lower() else "🔥" if "semi" in current_stage.lower() else "🏆" if "final" in current_stage.lower() else "⏳"
+        st.metric("Current Stage", f"{stage_icon} {stage_display}")
     
     st.markdown("---")
     
-    # Quick tournament bracket preview
+    # Tournament Quick View
     st.subheader("🎯 Tournament Quick View")
     show_tournament_bracket_preview(db)
+    
+    st.markdown("---")
+    
+    # Recent Activity Section
+    st.subheader("📈 Recent Activity")
+    
+    if completed_matches > 0:
+        recent_matches = list(db.matches.find({"status": "completed"}).sort("created_at", -1).limit(3))
+        for match in recent_matches:
+            flag_a = COUNTRY_FLAGS.get(match.get('teamA_name', 'Team A'), "🏴")
+            flag_b = COUNTRY_FLAGS.get(match.get('teamB_name', 'Team B'), "🏴")
+            
+            col1, col2, col3 = st.columns([3, 1, 2])
+            with col1:
+                st.write(f"**{flag_a} {match.get('teamA_name', 'Team A')}** vs **{match.get('teamB_name', 'Team B')} {flag_b}**")
+            with col2:
+                st.write(f"**{match.get('scoreA', 0)} - {match.get('scoreB', 0)}**")
+            with col3:
+                method = match.get('method', 'simulated').title()
+                stage = match.get('stage', 'unknown').title()
+                st.write(f"*{method} • {stage}*")
+    else:
+        st.info("No matches played yet. Start the tournament to see activity here.")
+    
+    # Quick Actions for Admin
+    if st.session_state.role == 'admin':
+        st.markdown("---")
+        st.subheader("⚡ Quick Actions")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🚀 Start Tournament", use_container_width=True):
+                if team_count >= 8:
+                    initialize_tournament(db)
+                    st.success("Tournament started successfully!")
+                    st.rerun()
+                else:
+                    st.error(f"Need 8 teams to start tournament. Currently have {team_count} teams.")
+        
+        with col2:
+            if st.button("📊 View Full Bracket", use_container_width=True):
+                st.session_state.current_page = "🏆 Tournament"
+                st.rerun()
+
+def show_tournament_bracket_preview(db):
+    """Show a compact tournament bracket preview"""
+    matches = list(db.matches.find({}).sort("stage", 1))
+    
+    if not matches:
+        st.info("🎯 Tournament not started yet. Admin can start the tournament when 8 teams are registered.")
+        
+        # Show registered teams
+        teams = list(db.federations.find({}).limit(8))
+        if teams:
+            st.write("**Registered Teams:**")
+            team_cols = st.columns(4)
+            for i, team in enumerate(teams):
+                with team_cols[i % 4]:
+                    flag = COUNTRY_FLAGS.get(team['country'], "🏴")
+                    st.write(f"{flag} {team['country']}")
+        
+        if len(teams) >= 8 and st.session_state.role == 'admin':
+            if st.button("🎊 Start Tournament Now", type="primary"):
+                initialize_tournament(db)
+                st.rerun()
+        return
+    
+    # Group matches by stage
+    stages = {}
+    for match in matches:
+        stage = match.get('stage', 'unknown')
+        if stage not in stages:
+            stages[stage] = []
+        stages[stage].append(match)
+    
+    # Display stages in order with better formatting
+    stage_order = ['quarterfinal', 'semifinal', 'final']
+    stage_icons = {'quarterfinal': '🎯', 'semifinal': '🔥', 'final': '🏆'}
+    
+    for stage in stage_order:
+        if stage in stages:
+            icon = stage_icons.get(stage, '⚽')
+            st.markdown(f"**{icon} {stage.upper().replace('_', ' ')}**")
+            
+            for match in stages[stage]:
+                flag_a = COUNTRY_FLAGS.get(match.get('teamA_name', 'Team A'), "🏴")
+                flag_b = COUNTRY_FLAGS.get(match.get('teamB_name', 'Team B'), "🏴")
+                
+                if match.get('status') == 'completed':
+                    # Determine winner
+                    if match['scoreA'] > match['scoreB']:
+                        winner = f"{flag_a} {match['teamA_name']}"
+                    elif match['scoreB'] > match['scoreA']:
+                        winner = f"{flag_b} {match['teamB_name']}"
+                    else:
+                        winner = "Draw"
+                    
+                    st.success(f"{flag_a} {match['teamA_name']} {match['scoreA']}-{match['scoreB']} {match['teamB_name']} {flag_b} → **Advances: {winner}**")
+                else:
+                    st.info(f"{flag_a} {match['teamA_name']} vs {match['teamB_name']} {flag_b}")
+            
+            st.write("")  # Add spacing between stages
+    
+    # Show tournament progress
+    total_matches = len(matches)
+    completed = len([m for m in matches if m.get('status') == 'completed'])
+    if total_matches > 0:
+        progress = (completed / total_matches) * 100
+        st.progress(progress)
+        st.caption(f"Tournament Progress: {completed}/{total_matches} matches completed ({progress:.0f}%)")
 
 def show_tournament_bracket_preview(db):
     """Show a compact tournament bracket preview"""
