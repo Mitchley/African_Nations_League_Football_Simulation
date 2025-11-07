@@ -227,7 +227,7 @@ def show_federation_registration():
                     if login_user(rep_email, password):
                         st.session_state.current_page = "🏠 Home"
                         st.rerun()
-def register_federation(country, manager, rep_name, rep_email, password):
+def register_federation(country, manager, rep_name, rep_email, password, custom_squad=None):
     try:
         db = get_database()
         if db is None: st.error("Database unavailable"); return False
@@ -235,16 +235,37 @@ def register_federation(country, manager, rep_name, rep_email, password):
         if existing_team: st.error("Country already registered"); return False
         if not register_user(rep_email, password, "federation", country): st.error("Registration failed"); return False
         
-        squad = generate_realistic_squad()
+        # Use custom squad if provided, otherwise generate one
+        if custom_squad:
+            squad = custom_squad
+        else:
+            squad = generate_realistic_squad()
+            
         team_rating = sum(p["ratings"][p["naturalPosition"]] for p in squad) / len(squad)
-        team_data = {"country": country, "manager": manager, "representative_name": rep_name, "representative_email": rep_email, "rating": round(team_rating, 2), "players": squad, "registered_at": datetime.now()}
+        team_data = {
+            "country": country, 
+            "manager": manager, 
+            "representative_name": rep_name, 
+            "representative_email": rep_email, 
+            "rating": round(team_rating, 2), 
+            "players": squad, 
+            "registered_at": datetime.now()
+        }
         db.federations.insert_one(team_data)
         
         if get_team_count() >= 8:
-            initialize_tournament(db); st.balloons(); st.success("🎊 Tournament started with 8 teams!")
+            initialize_tournament(db)
+            st.balloons()
+            st.success("🎊 Tournament started with 8 teams!")
+        
+        # Set current_page for federation users after registration/login
+        if login_user(rep_email, password):
+            st.session_state.current_page = "🏠 Home"
+            st.rerun()
         return True
-    except Exception as e: st.error(f"Registration error: {str(e)}"); return False
-
+    except Exception as e: 
+        st.error(f"Registration error: {str(e)}")
+        return False
 def generate_realistic_squad():
     first_names = ["Mohamed", "Ibrahim", "Ahmed", "Youssef", "Samuel", "David", "Kwame", "Kofi", "Chukwu", "Adebayo", "Musa", "Said", "Rashid", "Tendai", "Blessing", "Prince", "Emmanuel", "Daniel", "Joseph", "Victor"]
     last_names = ["Traore", "Diallo", "Keita", "Camara", "Sow", "Diop", "Ndiaye", "Gueye", "Mensah", "Appiah", "Owusu", "Adeyemi", "Okafor", "Okoro", "Mohammed", "Ali", "Hussein", "Juma", "Kamau", "Nkosi"]
