@@ -87,26 +87,31 @@ def show_login_page():
     st.markdown("---")
     st.subheader("🔐 Get Started - Choose Your Role")
     
-    tab1, tab2, tab3 = st.tabs(["👑 Admin Login", "🇺🇳 Federation Sign Up", "👀 Visitor Access"])
+    tab1, tab2, tab3 = st.tabs([" Admin Login", "Federation Sign Up", "Visitor Access"])
     with tab1:
         with st.form("admin_login"):
             email = st.text_input("Email", placeholder="admin@africanleague.com")
             password = st.text_input("Password", type="password")
-            if st.form_submit_button("🚀 Login as Admin", use_container_width=True):
+            if st.form_submit_button("Login as Admin", use_container_width=True):
                 if login_user(email, password):
-                    st.success("Welcome Admin!"); time.sleep(1); st.rerun()
-                else: st.error("Invalid credentials")
+                    st.success("Welcome Admin!")
+                    # FIX: Set current_page for admin
+                    st.session_state.current_page = "🏠 Home"
+                    time.sleep(1)
+                    st.rerun()
+                else: 
+                    st.error("Invalid credentials")
     
-    with tab2: show_federation_registration()
+    with tab2: 
+        show_federation_registration()
     
     with tab3:
         st.info("Explore tournament matches, standings, and statistics")
-        if st.button("👀 Enter as Visitor", use_container_width=True, type="primary"):
+        if st.button("Enter as Visitor", use_container_width=True, type="primary"):
             st.session_state.user = {"email": "visitor", "role": "visitor"}
             st.session_state.role = "visitor"
-            st.session_state.current_page = "🏠 Home"  # Set Home as default
+            st.session_state.current_page = "🏠 Home"  # This works for visitors
             st.rerun()
-
 def show_federation_registration():
     db = get_database()
     if db is None: st.error("❌ Cannot access database"); return
@@ -122,7 +127,7 @@ def show_federation_registration():
         col1, col2 = st.columns(2)
         with col1: country = st.selectbox("Select Country", AFRICAN_COUNTRIES); manager = st.text_input("Manager Name")
         with col2: rep_name = st.text_input("Representative Name"); rep_email = st.text_input("Email"); password = st.text_input("Password", type="password")
-        if st.form_submit_button("🚀 Register Federation", use_container_width=True):
+        if st.form_submit_button("Register Federation", use_container_width=True):
             if register_federation(country, manager, rep_name, rep_email, password):
                 st.success("Federation registered successfully!")
                 if login_user(rep_email, password):
@@ -187,7 +192,7 @@ def show_home_dashboard():
     db = get_database()
     if db is None: st.error("❌ Database connection failed"); return
     
-    st.markdown("""<div class="main-header"><h1 style="margin:0; color: #FFD700; font-size: 2.8em;">🏆 WELCOME TO AFRICAN NATIONS LEAGUE 2024</h1><p style="margin:0; font-size: 1.3em; font-weight: bold;">Tournament Dashboard</p></div>""", unsafe_allow_html=True)
+    st.markdown("""<div class="main-header"><h1 style="margin:0; color: #FFD700; font-size: 2.8em;">🏆 WELCOME TO AFRICAN NATIONS LEAGUE 2025</h1><p style="margin:0; font-size: 1.3em; font-weight: bold;">Tournament Dashboard</p></div>""", unsafe_allow_html=True)
     
     teams = get_federations(); matches = get_matches(); completed_matches = [m for m in matches if m.get('status') == 'completed']
     tournament_data = get_tournaments(); tournament = tournament_data[0] if tournament_data else {}
