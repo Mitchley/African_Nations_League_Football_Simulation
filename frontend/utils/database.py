@@ -4,77 +4,78 @@ from datetime import datetime
 
 @st.cache_resource
 def get_database():
-    """Get MongoDB database connection"""
+    """Get MongoDB database connection - reads from Streamlit Cloud secrets"""
     try:
-        # Get MongoDB URI from Streamlit secrets
-        mongodb_uri = st.secrets.get("MONGODB_URI", "mongodb://localhost:27017")
+        # This reads from Streamlit Cloud secrets
+        mongodb_uri = st.secrets["MONGODB_URI"]
         
-        client = MongoClient(mongodb_uri)
+        client = MongoClient(
+            mongodb_uri,
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=15000,
+            socketTimeoutMS=15000,
+            retryWrites=True,
+            w="majority"
+        )
         
         # Test connection
         client.admin.command('ping')
-        print("✅ MongoDB connection successful")
+        print("✅ Connected to MongoDB successfully!")
         
-        return client.african_nations_league
+        # Use database from connection string
+        return client.get_database()
         
     except Exception as e:
         st.error(f"❌ Database connection failed: {str(e)}")
-        # Return a mock database for demo purposes
         return None
 
 def save_team(team_data):
-    """Save team to database"""
-    try:
-        db = get_database()
-        if db:
-            return db.federations.insert_one(team_data)
-        return None
-    except Exception as e:
-        st.error(f"Error saving team: {str(e)}")
-        return None
+    db = get_database()
+    if db:
+        return db.federations.insert_one(team_data)
+    return None
 
 def get_players_by_federation(federation_email):
-    """Get players by federation email"""
-    try:
-        db = get_database()
-        if db:
-            team = db.federations.find_one({"representative_email": federation_email})
-            return team.get('players', []) if team else []
+    db = get_database()
+    if not db:
         return []
-    except Exception as e:
-        st.error(f"Error fetching players: {str(e)}")
-        return []
+    team = db.federations.find_one({"representative_email": federation_email})
+    return team.get('players', []) if team else []
 
 def initialize_database():
-    """Initialize database with admin user and collections"""
-    try:
-        db = get_database()
-        if not db:
-            print("❌ Database not available - running in demo mode")
-            return False
-            
-        # Create admin user if not exists
-        admin_email = st.secrets.get("ADMIN_EMAIL", "admin@africanleague.com")
-        admin_password = st.secrets.get("ADMIN_PASSWORD", "admin123")
-        
-        existing_admin = db.users.find_one({"email": admin_email})
-        if not existing_admin:
-            db.users.insert_one({
-                "email": admin_email,
-                "password": admin_password,
-                "role": "admin",
-                "created_at": datetime.now()
-            })
-            print("✅ Admin user created")
-        
-        # Create indexes
-        db.federations.create_index("country", unique=True)
-        db.federations.create_index("representative_email", unique=True)
-        db.matches.create_index("stage")
-        
-        print("✅ Database initialized successfully")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Database initialization failed: {str(e)}")
+    db = get_database()
+    if not db:
         return False
+        
+    # Get admin credentials from Streamlit secrets
+    admin_email = st.secrets["ADMIN_EMAIL"]
+    admin_password = st.secrets["ADMIN_PASSWORD"]
+    
+    existing_admin = db.users.find_one({"email": admin_email})
+    if not existing_admin:
+        db.users.insert_one({
+            "email": admin_email,
+            "password": admin_password,
+            "role": "admin",
+            "created_at": datetime.now()
+        })
+    
+    return True
+
+def get_all_teams():
+    db = get_database()
+    if not db:
+        return []
+    return list(db.federations.find({}))
+
+def get_tournament_matches():
+    db = get_database()
+    if not db:
+        return []
+    return list(db.matches.find({}))
+
+def get_tournament_data():
+    db = get_database()
+    if not db:
+        return {}
+    return db.tournaments.find_one({}) or {}
