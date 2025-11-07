@@ -312,14 +312,20 @@ def show_enhanced_tournament_bracket(db):
             else: display_enhanced_match_card(final_match, "FINAL", "CHAMPION")
 
 def display_enhanced_match_card(match, match_label, next_round):
-    flag_a = COUNTRY_FLAGS.get(match.get('teamA_name', 'Team A'), "🏴"); flag_b = COUNTRY_FLAGS.get(match.get('teamB_name', 'Team B'), "🏴")
+    # Handle NULL/None team names by providing defaults
+    team_a_name = match.get('teamA_name') or "TBD"
+    team_b_name = match.get('teamB_name') or "TBD"
+    
+    # Use flags only for valid team names, otherwise use placeholder
+    flag_a = COUNTRY_FLAGS.get(team_a_name, "🏴") if team_a_name != "TBD" else "❓"
+    flag_b = COUNTRY_FLAGS.get(team_b_name, "🏴") if team_b_name != "TBD" else "❓"
+    
     if match.get('status') == 'completed':
-        winner = match['teamA_name'] if match['scoreA'] > match['scoreB'] else match['teamB_name']; winner_flag = flag_a if match['scoreA'] > match['scoreB'] else flag_b
-        st.markdown(f"""<div class="tournament-bracket" style="background: #d4edda;"><div style="text-align: center; font-weight: bold; color: #155724;">{match_label}</div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span>{flag_a} {match['teamA_name']}</span><span style="font-weight: bold; font-size: 1.2em;">{match['scoreA']}</span></div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span>{flag_b} {match['teamB_name']}</span><span style="font-weight: bold; font-size: 1.2em;">{match['scoreB']}</span></div><div style="text-align: center; margin-top: 10px; padding: 8px; background: #c3e6cb; border-radius: 5px;"><strong>➡️ Advances to {next_round}: {winner_flag} {winner}</strong></div></div>""", unsafe_allow_html=True)
+        winner = team_a_name if match['scoreA'] > match['scoreB'] else team_b_name
+        winner_flag = flag_a if match['scoreA'] > match['scoreB'] else flag_b
+        st.markdown(f"""<div class="tournament-bracket" style="background: #d4edda;"><div style="text-align: center; font-weight: bold; color: #155724;">{match_label}</div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span>{flag_a} {team_a_name}</span><span style="font-weight: bold; font-size: 1.2em;">{match['scoreA']}</span></div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span>{flag_b} {team_b_name}</span><span style="font-weight: bold; font-size: 1.2em;">{match['scoreB']}</span></div><div style="text-align: center; margin-top: 10px; padding: 8px; background: #c3e6cb; border-radius: 5px;"><strong>➡️ Advances to {next_round}: {winner_flag} {winner}</strong></div></div>""", unsafe_allow_html=True)
     else:
-        st.markdown(f"""<div class="tournament-bracket"><div style="text-align: center; font-weight: bold; color: #1E3C72;">{match_label}</div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span style="font-weight: bold;">{flag_a} {match['teamA_name']}</span><span style="font-weight: bold;">VS</span></div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span style="font-weight: bold;">{flag_b} {match['teamB_name']}</span><span style="font-size: 1.2em;">⏰</span></div><div style="text-align: center; margin-top: 10px; color: #666; font-size: 0.9em;">Winner advances to {next_round}</div></div>""", unsafe_allow_html=True)
-
-def show_match_control():
+        st.markdown(f"""<div class="tournament-bracket"><div style="text-align: center; font-weight: bold; color: #1E3C72;">{match_label}</div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span style="font-weight: bold;">{flag_a} {team_a_name}</span><span style="font-weight: bold;">VS</span></div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span style="font-weight: bold;">{flag_b} {team_b_name}</span><span style="font-size: 1.2em;">⏰</span></div><div style="text-align: center; margin-top: 10px; color: #666; font-size: 0.9em;">Winner advances to {next_round}</div></div>""", unsafe_allow_html=True)def show_match_control():
     if st.session_state.role != 'admin': st.error("🔒 Admin access required"); return
     st.title("⚽ Match Control Center"); db = get_database()
     if db is None: st.error("Database unavailable"); return
