@@ -6,7 +6,6 @@ from frontend.utils.auth import init_session_state, login_user, logout_user
 from frontend.utils.database import save_team, get_database, get_players_by_federation, initialize_database, is_database_available, get_team_count
 from frontend.utils.match_simulator import simulate_match_with_commentary
 
-
 init_session_state()
 
 # Country flags dictionary
@@ -37,9 +36,9 @@ def generate_player_ratings(position):
     ratings = {}
     for pos in ["GK", "DF", "MD", "AT"]:
         if pos == position:
-            ratings[pos] = random.randint(50, 100)  # Natural position
+            ratings[pos] = random.randint(50, 100)
         else:
-            ratings[pos] = random.randint(0, 50)    # Non-natural position
+            ratings[pos] = random.randint(0, 50)
     return ratings
 
 def calculate_team_rating(squad):
@@ -56,21 +55,66 @@ def main():
         initial_sidebar_state="expanded"
     )
     
+    # Custom CSS for professional look
+    st.markdown("""
+    <style>
+    .main-header {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+        border: 4px solid #FFD700;
+    }
+    .match-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border-left: 5px solid #1E3C72;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .team-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 0.5rem;
+        border: 2px solid #1E3C72;
+        text-align: center;
+    }
+    .bracket-match {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border: 2px solid #dee2e6;
+    }
+    .stage-title {
+        background: #1E3C72;
+        color: white;
+        padding: 0.5rem;
+        border-radius: 5px;
+        text-align: center;
+        margin: 1rem 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Show connection status in sidebar
     with st.sidebar:
         if "MONGODB_URI" in st.secrets:
-            st.success("✅ Secrets loaded from Streamlit Cloud")
+            st.success("✅ Secrets loaded")
             
             if is_database_available():
                 st.success("✅ Connected to MongoDB")
                 team_count = get_team_count()
-                st.info(f"📊 Database has {team_count} teams")
+                st.info(f"📊 {team_count} teams registered")
             else:
-                st.error("❌ Cannot connect to MongoDB")
+                st.error("❌ Database connection failed")
         else:
-            st.error("❌ No secrets found in Streamlit Cloud")
+            st.error("❌ No secrets found")
     
-    # Initialize database
     initialize_database()
     
     if not st.session_state.user:
@@ -90,7 +134,7 @@ def hide_sidebar():
 
 def show_login_page():
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 3rem; border-radius: 20px; color: white; text-align: center; margin-bottom: 2rem; border: 4px solid #FFD700;">
+    <div class="main-header">
         <h1 style="margin:0; color: #FFD700; font-size: 3em;">🏆 AFRICAN NATIONS LEAGUE</h1>
         <p style="margin:0; font-size: 1.5em;">Road to Glory 2025</p>
         <p style="margin:0; font-size: 1em;">INF4001N: 2025 Entrance Exam Brief for 2026</p>
@@ -138,15 +182,12 @@ def show_federation_registration():
         st.error("❌ Database not available. Please check your MongoDB connection.")
         return
     
-    # Check current team count
     existing_teams = db.federations.count_documents({})
-    
     st.info(f"📊 Current teams in database: {existing_teams}/8")
     
     if existing_teams >= 8:
         st.warning("⚠️ Tournament is full with 8 teams! New registrations will be waitlisted.")
     
-    # Initialize session state for squad
     if 'squad' not in st.session_state:
         st.session_state.squad = []
     if 'player_ratings' not in st.session_state:
@@ -173,7 +214,6 @@ def show_federation_registration():
                               disabled=len(available_positions) == 0,
                               key="position_select")
     
-    # Add player button
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         add_disabled = (len(squad) >= 23 or not player_name or len(available_positions) == 0)
@@ -185,7 +225,6 @@ def show_federation_registration():
                 st.session_state.squad.append(new_player)
                 st.rerun()
     
-    # Show current squad status
     st.write(f"**Squad: {len(squad)}/23 players**")
     
     # Show current squad composition
@@ -197,7 +236,7 @@ def show_federation_registration():
     with col4: st.metric("Attackers", f"{pos_count['AT']}/5")
     
     if len(squad) < 23:
-        st.warning(f"**Need {23 - len(squad)} more players** (3 GK, 7 DF, 8 MD, 5 AT)")
+        st.warning(f"**Need {23 - len(squad)} more players**")
     
     # Show current squad
     if squad:
@@ -210,12 +249,7 @@ def show_federation_registration():
                 player.is_captain = (i == captain_index)
         
         st.write("### Your Squad")
-        positions = {
-            "GK": "🥅 Goalkeepers",
-            "DF": "🛡️ Defenders", 
-            "MD": "⚡ Midfielders",
-            "AT": "🎯 Attackers"
-        }
+        positions = {"GK": "🥅 Goalkeepers", "DF": "🛡️ Defenders", "MD": "⚡ Midfielders", "AT": "🎯 Attackers"}
         
         for pos, title in positions.items():
             position_players = [p for p in squad if p.position == pos]
@@ -226,10 +260,7 @@ def show_federation_registration():
                         if player.name in st.session_state.player_ratings:
                             rating = st.session_state.player_ratings[player.name][player.position]
                             st.write(f"**{player.name}** - Rating: {rating}{captain}")
-                        else:
-                            st.write(f"**{player.name}**{captain}")
     
-    # Clear squad button
     if squad:
         if st.button("🗑️ Clear Squad", key="clear_squad"):
             st.session_state.squad = []
@@ -253,18 +284,10 @@ def show_federation_registration():
         
         if submitted:
             if len(squad) == 23:
-                final_pos_count = {'GK': 0, 'DF': 0, 'MD': 0, 'AT': 0}
-                for player in squad:
-                    final_pos_count[player.position] += 1
-                
-                if (final_pos_count['GK'] >= 2 and final_pos_count['DF'] >= 6 and 
-                    final_pos_count['MD'] >= 6 and final_pos_count['AT'] >= 3):
-                    if register_federation(country, manager, rep_name, rep_email, password, squad):
-                        st.success("✅ Registered successfully!")
-                        if login_user(rep_email, password):
-                            st.rerun()
-                else:
-                    st.error("❌ Invalid squad composition! Need at least: 2 GK, 6 DF, 6 MD, 3 AT")
+                if register_federation(country, manager, rep_name, rep_email, password, squad):
+                    st.success("✅ Registered successfully!")
+                    if login_user(rep_email, password):
+                        st.rerun()
             else:
                 st.error(f"❌ Need {23 - len(squad)} more players to complete squad")
 
@@ -276,7 +299,6 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
             st.error("❌ Database not available")
             return False
         
-        # Check duplicates
         if db.users.find_one({"email": rep_email}):
             st.error("❌ Email already registered")
             return False
@@ -285,13 +307,11 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
             st.error("❌ Country already registered")
             return False
         
-        # Create user
         from frontend.utils.auth import register_user
         if not register_user(rep_email, password, "federation", country):
             st.error("❌ User registration failed")
             return False
         
-        # Convert squad to serializable format
         squad_data = []
         for player in squad:
             squad_data.append({
@@ -301,10 +321,8 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
                 "isCaptain": player.is_captain
             })
         
-        # Calculate team rating
         team_rating = calculate_team_rating(squad_data)
         
-        # Save team
         team_data = {
             "country": country, 
             "manager": manager, 
@@ -319,7 +337,6 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
         
         result = db.federations.insert_one(team_data)
         
-        # Initialize tournament if this is the 8th team
         team_count = db.federations.count_documents({})
         if team_count >= 8:
             initialize_tournament(db)
@@ -351,10 +368,9 @@ def initialize_tournament(db):
     
     random.shuffle(teams)
     
-    # Clear existing matches
     db.matches.delete_many({})
     
-    # Create quarter-final matches with proper data structure
+    # Create quarter-final matches
     for i in range(0, 8, 2):
         match_data = {
             "teamA_id": teams[i]["_id"],
@@ -374,7 +390,6 @@ def initialize_tournament(db):
         }
         db.matches.insert_one(match_data)
     
-    # Create tournament document
     tournament_data = {
         "status": "active",
         "current_stage": "quarterfinal",
@@ -384,6 +399,7 @@ def initialize_tournament(db):
     db.tournaments.update_one({}, {"$set": tournament_data}, upsert=True)
     
     st.success("🎊 Tournament bracket created with 4 quarter-final matches!")
+
 def show_app():
     if 'current_page' not in st.session_state:
         st.session_state.current_page = "Home"
@@ -398,12 +414,13 @@ def show_app():
         
         st.markdown("---")
         
+        # Streamlined navigation
         if st.session_state.role == "admin":
-            pages = ["🏠 Home", "👨‍💼 Admin", "🏆 Tournament", "⚽ Matches", "📊 Statistics"]
+            pages = ["🏠 Dashboard", "🏆 Tournament", "⚽ Match Control", "📊 Analytics"]
         elif st.session_state.role == "federation":
-            pages = ["🏠 Home", "🇺🇳 Federation", "🏆 Tournament", "⚽ Matches", "📊 Statistics"]
+            pages = ["🏠 Dashboard", "🏆 Tournament", "👥 My Team", "📊 Statistics"]
         else:
-            pages = ["🏠 Home", "🏆 Tournament", "⚽ Matches", "📊 Statistics"]
+            pages = ["🏠 Dashboard", "🏆 Tournament", "📊 Statistics"]
         
         for page in pages:
             if st.button(page, use_container_width=True, 
@@ -420,23 +437,23 @@ def show_app():
 
 def show_current_page():
     page_mapping = {
-        "🏠 Home": show_home,
-        "👨‍💼 Admin": show_admin,
-        "🇺🇳 Federation": show_federation,
+        "🏠 Dashboard": show_dashboard,
         "🏆 Tournament": show_tournament,
-        "⚽ Matches": show_matches,
+        "⚽ Match Control": show_match_control,
+        "📊 Analytics": show_analytics,
+        "👥 My Team": show_my_team,
         "📊 Statistics": show_statistics
     }
     
-    page_function = page_mapping.get(st.session_state.current_page, show_home)
+    page_function = page_mapping.get(st.session_state.current_page, show_dashboard)
     page_function()
 
-def show_home():
+def show_dashboard():
     st.title("🏠 African Nations League Dashboard")
     db = get_database()
     
     if db is None:
-        st.error("❌ Cannot connect to database. Please check your MongoDB connection.")
+        st.error("❌ Cannot connect to database.")
         return
     
     team_count = db.federations.count_documents({})
@@ -454,35 +471,173 @@ def show_home():
     
     st.markdown("---")
     
-    # Display all teams from database
-    st.subheader("🇺🇳 All Registered Teams")
-    teams = list(db.federations.find({}))
+    # Quick tournament bracket preview
+    st.subheader("🎯 Tournament Quick View")
+    show_tournament_bracket_preview(db)
+
+def show_tournament_bracket_preview(db):
+    """Show a compact tournament bracket preview"""
+    matches = list(db.matches.find({}).sort("stage", 1))
     
-    if teams:
-        cols = st.columns(4)
-        for i, team in enumerate(teams):
-            with cols[i % 4]:
-                flag = COUNTRY_FLAGS.get(team['country'], "🏴")
-                rating = team.get('rating', 'N/A')
-                manager = team.get('manager', 'Unknown')
+    if not matches:
+        st.info("Tournament not started yet")
+        return
+    
+    # Group matches by stage
+    stages = {}
+    for match in matches:
+        stage = match.get('stage', 'unknown')
+        if stage not in stages:
+            stages[stage] = []
+        stages[stage].append(match)
+    
+    # Display stages in order
+    stage_order = ['quarterfinal', 'semifinal', 'final']
+    
+    for stage in stage_order:
+        if stage in stages:
+            st.markdown(f'<div class="stage-title">{stage.upper().replace("_", " ")}</div>', unsafe_allow_html=True)
+            
+            for match in stages[stage]:
+                flag_a = COUNTRY_FLAGS.get(match['teamA_name'], "🏴")
+                flag_b = COUNTRY_FLAGS.get(match['teamB_name'], "🏴")
                 
+                if match.get('status') == 'completed':
+                    winner_flag = flag_a if match['scoreA'] > match['scoreB'] else flag_b
+                    st.success(f"{flag_a} {match['teamA_name']} {match['scoreA']}-{match['scoreB']} {match['teamB_name']} {flag_b} → {winner_flag} Advances")
+                else:
+                    st.info(f"{flag_a} {match['teamA_name']} vs {match['teamB_name']} {flag_b}")
+
+def show_tournament():
+    st.title("🏆 Tournament Bracket")
+    db = get_database()
+    
+    if db is None:
+        st.error("❌ Database not available")
+        return
+        
+    st.markdown("""
+    <div class="main-header">
+        <h2 style="margin:0; color: #FFD700;">AFRICAN NATIONS LEAGUE 2025</h2>
+        <p style="margin:0; font-size: 1.2em;">ROAD TO THE FINAL</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    teams = list(db.federations.find({}))
+    matches = list(db.matches.find({}))
+    tournament = db.tournaments.find_one({}) or {}
+    
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Status", tournament.get('status', 'Not Started').title())
+    with col2: st.metric("Stage", tournament.get('current_stage', 'Quarter Finals').title())
+    with col3: st.metric("Teams", len(teams))
+    
+    st.markdown("---")
+    
+    # Enhanced tournament bracket display
+    show_enhanced_tournament_bracket(db, matches)
+
+def show_enhanced_tournament_bracket(db, matches):
+    """Display tournament bracket in a professional format"""
+    
+    if not matches:
+        st.info("🎯 Quarter-final matches not yet generated. Admin can start the tournament.")
+        return
+    
+    # Group matches by stage and create bracket visualization
+    stages = {}
+    for match in matches:
+        stage = match.get('stage', 'unknown')
+        if stage not in stages:
+            stages[stage] = []
+        stages[stage].append(match)
+    
+    # Display bracket in columns
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        if 'quarterfinal' in stages:
+            st.markdown('<div class="stage-title">QUARTER FINALS</div>', unsafe_allow_html=True)
+            for match in stages['quarterfinal']:
+                display_match_card(match)
+    
+    with col2:
+        if 'semifinal' in stages:
+            st.markdown('<div class="stage-title">SEMI FINALS</div>', unsafe_allow_html=True)
+            for match in stages['semifinal']:
+                display_match_card(match)
+        else:
+            st.info("Semi-finals: Waiting for quarter-final results")
+    
+    with col3:
+        if 'final' in stages:
+            st.markdown('<div class="stage-title">FINAL</div>', unsafe_allow_html=True)
+            for match in stages['final']:
+                display_match_card(match)
+        else:
+            st.info("Final: Tournament in progress")
+        
+        # Champion display
+        if 'final' in stages:
+            final_match = stages['final'][0]
+            if final_match.get('status') == 'completed':
+                winner = final_match['teamA_name'] if final_match['scoreA'] > final_match['scoreB'] else final_match['teamB_name']
+                flag = COUNTRY_FLAGS.get(winner, "🏆")
                 st.markdown(f"""
-                <div style="border: 2px solid #1E3C72; border-radius: 10px; padding: 10px; margin: 5px; text-align: center; background: white;">
-                    <h3 style="margin: 0; font-size: 1.5em;">{flag}</h3>
-                    <h4 style="margin: 5px 0; color: #1E3C72;">{team['country']}</h4>
-                    <p style="margin: 2px 0; font-size: 0.9em; color: #666;">Rating: {rating}</p>
-                    <p style="margin: 2px 0; font-size: 0.8em; color: #888;">Manager: {manager}</p>
+                <div style="background: linear-gradient(135deg, #FFD700 0%, #FFEC8B 100%); 
+                          padding: 2rem; border-radius: 15px; text-align: center; 
+                          border: 3px solid #1E3C72; margin-top: 2rem;">
+                    <h2 style="color: #1E3C72; margin: 0;">🏆 CHAMPION</h2>
+                    <h1 style="color: #1E3C72; margin: 10px 0; font-size: 2.5em;">{flag} {winner}</h1>
+                    <p style="color: #1E3C72; margin: 0;">African Nations League 2025</p>
                 </div>
                 """, unsafe_allow_html=True)
-    else:
-        st.info("No teams found in database")
 
-def show_admin():
+def display_match_card(match):
+    """Display a match in a professional card format"""
+    flag_a = COUNTRY_FLAGS.get(match['teamA_name'], "🏴")
+    flag_b = COUNTRY_FLAGS.get(match['teamB_name'], "🏴")
+    
+    if match.get('status') == 'completed':
+        winner_bg = "linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)" if match['scoreA'] > match['scoreB'] else "linear-gradient(135deg, #f8d7da 0%, #f1b0b7 100%)"
+        st.markdown(f"""
+        <div class="match-card" style="background: {winner_bg};">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-weight: bold;">{flag_a} {match['teamA_name']}</div>
+                <div style="font-size: 1.2em; font-weight: bold;">{match['scoreA']}</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                <div style="font-weight: bold;">{flag_b} {match['teamB_name']}</div>
+                <div style="font-size: 1.2em; font-weight: bold;">{match['scoreB']}</div>
+            </div>
+            <div style="text-align: center; margin-top: 5px; font-size: 0.8em; color: #666;">
+                {match.get('method', 'simulated').title()} • {match.get('stage', '').title()}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="match-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>{flag_a} {match['teamA_name']}</div>
+                <div>VS</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                <div>{flag_b} {match['teamB_name']}</div>
+                <div>Scheduled</div>
+            </div>
+            <div style="text-align: center; margin-top: 5px; font-size: 0.8em; color: #666;">
+                {match.get('stage', '').title()}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def show_match_control():
     if st.session_state.role != 'admin':
         st.error("🔒 Admin access only")
         return
     
-    st.title("👨‍💼 Admin Panel")
+    st.title("⚽ Match Control Center")
     db = get_database()
     
     if db is None:
@@ -490,34 +645,36 @@ def show_admin():
         return
     
     tournament = db.tournaments.find_one({}) or {}
-    st.subheader("Tournament Control")
     
-    col1, col2, col3, col4 = st.columns(4)
+    # Tournament controls
+    st.subheader("🎯 Tournament Management")
+    col1, col2, col3 = st.columns(3)
+    
     with col1:
-        if st.button("🚀 Start Tournament", key="admin_start"):
+        if st.button("🚀 Start Tournament", use_container_width=True):
             initialize_tournament(db)
-            st.success("Tournament started with quarter-finals!")
+            st.success("Tournament started!")
+            st.rerun()
+    
     with col2:
-        if st.button("🔄 Reset Matches", key="admin_reset_matches"):
-            db.matches.delete_many({})
-            st.success("All matches reset!")
-    with col3:
-        if st.button("🔧 Fix Match Data", key="admin_fix_matches"):
-            fixed_count = fix_matches_data(db)
-            if fixed_count == 0:
-                st.info("No matches needed fixing")
-    with col4:
-        if st.button("🗑️ Reset All Data", key="admin_reset_all"):
+        if st.button("🔄 Reset Tournament", use_container_width=True):
             db.matches.delete_many({})
             db.tournaments.delete_many({})
-            st.success("All tournament data reset!")
+            st.success("Tournament reset!")
+            st.rerun()
+    
+    with col3:
+        if st.button("⚡ Auto Simulate All", use_container_width=True):
+            auto_simulate_tournament(db)
+            st.rerun()
     
     st.markdown("---")
+    
+    # Match simulation
+    st.subheader("🎮 Match Simulation")
     show_live_sim(db)
 
 def show_live_sim(db):
-    st.subheader("⚽ Match Simulation")
-    
     matches = list(db.matches.find({"status": "scheduled"}))
     
     if not matches:
@@ -526,14 +683,12 @@ def show_live_sim(db):
     
     match_options = []
     for match in matches:
-        # Safely check if match has required fields
         if 'teamA_id' not in match or 'teamB_id' not in match:
             continue
             
         teamA = db.federations.find_one({"_id": match['teamA_id']})
         teamB = db.federations.find_one({"_id": match['teamB_id']})
         
-        # Only include matches where both teams exist
         if teamA and teamB:
             match_options.append({
                 "match": match, 
@@ -549,7 +704,7 @@ def show_live_sim(db):
         if selected_match_info:
             show_match_interface(db, selected_match_info)
     else:
-        st.info("No valid matches available for simulation. Please start the tournament first.")
+        st.info("No valid matches available for simulation.")
 
 def show_match_interface(db, match_info):
     teamA_name, teamB_name = match_info['teamA_name'], match_info['teamB_name']
@@ -618,21 +773,152 @@ def simulate_match_quick(db, match, teamA_name, teamB_name):
         }}
     )
     
-    # Import here to avoid circular imports
-    from backend.email_service import notify_federations_after_match
-    notify_federations_after_match(match["_id"])
+    # Advance tournament stage if needed
+    advance_tournament_stage(db, match["_id"])
     
     flag_a = COUNTRY_FLAGS.get(teamA_name, "🏴")
     flag_b = COUNTRY_FLAGS.get(teamB_name, "🏴")
     st.success(f"✅ Match simulated: {flag_a} {teamA_name} {score_a}-{score_b} {teamB_name} {flag_b}")
     st.rerun()
 
-def show_federation():
+def advance_tournament_stage(db, completed_match_id):
+    """Advance tournament to next stage when matches are completed"""
+    current_match = db.matches.find_one({"_id": completed_match_id})
+    if not current_match:
+        return
+    
+    stage = current_match.get('stage')
+    all_matches = list(db.matches.find({"stage": stage}))
+    
+    # Check if all matches in current stage are completed
+    if all(m.get('status') == 'completed' for m in all_matches):
+        if stage == 'quarterfinal':
+            create_semifinals(db)
+        elif stage == 'semifinal':
+            create_final(db)
+
+def create_semifinals(db):
+    """Create semi-final matches from quarter-final winners"""
+    quarterfinals = list(db.matches.find({"stage": "quarterfinal", "status": "completed"}))
+    
+    if len(quarterfinals) != 4:
+        return
+    
+    winners = []
+    for match in quarterfinals:
+        if match['scoreA'] > match['scoreB']:
+            winners.append({
+                "id": match['teamA_id'],
+                "name": match['teamA_name'],
+                "rating": match['teamA_rating']
+            })
+        else:
+            winners.append({
+                "id": match['teamB_id'],
+                "name": match['teamB_name'], 
+                "rating": match['teamB_rating']
+            })
+    
+    # Create semi-final matches
+    for i in range(0, 4, 2):
+        match_data = {
+            "teamA_id": winners[i]["id"],
+            "teamA_name": winners[i]["name"],
+            "teamA_rating": winners[i]["rating"],
+            "teamB_id": winners[i+1]["id"],
+            "teamB_name": winners[i+1]["name"],
+            "teamB_rating": winners[i+1]["rating"],
+            "stage": "semifinal",
+            "status": "scheduled",
+            "scoreA": 0,
+            "scoreB": 0,
+            "goal_scorers": [],
+            "commentary": [],
+            "method": "not_played",
+            "created_at": datetime.now()
+        }
+        db.matches.insert_one(match_data)
+    
+    db.tournaments.update_one({}, {"$set": {"current_stage": "semifinal"}})
+    st.success("🎉 Semi-finals created!")
+
+def create_final(db):
+    """Create final match from semi-final winners"""
+    semifinals = list(db.matches.find({"stage": "semifinal", "status": "completed"}))
+    
+    if len(semifinals) != 2:
+        return
+    
+    winners = []
+    for match in semifinals:
+        if match['scoreA'] > match['scoreB']:
+            winners.append({
+                "id": match['teamA_id'],
+                "name": match['teamA_name'],
+                "rating": match['teamA_rating']
+            })
+        else:
+            winners.append({
+                "id": match['teamB_id'],
+                "name": match['teamB_name'],
+                "rating": match['teamB_rating']
+            })
+    
+    # Create final match
+    match_data = {
+        "teamA_id": winners[0]["id"],
+        "teamA_name": winners[0]["name"],
+        "teamA_rating": winners[0]["rating"],
+        "teamB_id": winners[1]["id"],
+        "teamB_name": winners[1]["name"],
+        "teamB_rating": winners[1]["rating"],
+        "stage": "final",
+        "status": "scheduled",
+        "scoreA": 0,
+        "scoreB": 0,
+        "goal_scorers": [],
+        "commentary": [],
+        "method": "not_played",
+        "created_at": datetime.now()
+    }
+    db.matches.insert_one(match_data)
+    
+    db.tournaments.update_one({}, {"$set": {"current_stage": "final"}})
+    st.success("🎉 Final match created!")
+
+def auto_simulate_tournament(db):
+    """Automatically simulate all remaining matches"""
+    scheduled_matches = list(db.matches.find({"status": "scheduled"}))
+    
+    for match in scheduled_matches:
+        teamA = db.federations.find_one({"_id": match['teamA_id']})
+        teamB = db.federations.find_one({"_id": match['teamB_id']})
+        
+        if teamA and teamB:
+            simulate_match_quick(db, match, teamA['country'], teamB['country'])
+    
+    st.success("✅ All matches simulated automatically!")
+
+def show_analytics():
+    if st.session_state.role != 'admin':
+        st.error("🔒 Admin access only")
+        return
+    
+    st.title("📊 Tournament Analytics")
+    db = get_database()
+    
+    if db is None:
+        st.error("❌ Database not available")
+        return
+    
+    show_statistics_content(db, True)
+
+def show_my_team():
     if st.session_state.role != 'federation':
         st.info("👤 Federation access only")
         return
     
-    st.title("🇺🇳 My Federation")
+    st.title("👥 My Team")
     db = get_database()
     
     if db is None:
@@ -667,7 +953,7 @@ def show_federation():
                         rating = player['ratings'][player['naturalPosition']]
                         st.write(f"**{player['name']}** - {pos} - Rating: {rating}{captain}")
         
-        st.subheader("📊 Team Analytics")
+        st.subheader("📊 Team Performance")
         total_players = len(user_team.get('players', []))
         if total_players > 0:
             avg_rating = user_team.get('rating', 75)
@@ -679,92 +965,18 @@ def show_federation():
     else:
         st.error("No team found for your account")
 
-def show_tournament():
-    st.title("🏆 Tournament Bracket")
-    db = get_database()
-    
-    if db is None:
-        st.error("❌ Database not available")
-        return
-        
-    teams = list(db.federations.find({}))
-    matches = list(db.matches.find({}))
-    tournament = db.tournaments.find_one({}) or {}
-    
-    st.header("AFRICAN NATIONS LEAGUE 2025")
-    st.subheader("ROAD TO THE FINAL")
-    
-    col1, col2, col3 = st.columns(3)
-    with col1: st.metric("Status", tournament.get('status', 'Not Started').title())
-    with col2: st.metric("Stage", tournament.get('current_stage', 'Quarter Finals').title())
-    with col3: st.metric("Teams", len(teams))
-    
-    st.markdown("---")
-    
-    st.write("### 🎯 Quarter Finals")
-    qf_matches = [m for m in matches if m.get('stage') == 'quarterfinal']
-    
-    if qf_matches:
-        for match in qf_matches:
-            flag_a = COUNTRY_FLAGS.get(match['teamA_name'], "🏴")
-            flag_b = COUNTRY_FLAGS.get(match['teamB_name'], "🏴")
-            
-            if match.get('status') == 'completed':
-                st.success(f"**{flag_a} {match['teamA_name']}** {match['scoreA']}-{match['scoreB']} **{match['teamB_name']} {flag_b}**")
-                if match.get('method') == 'played':
-                    st.caption("🎮 Played with AI Commentary")
-                else:
-                    st.caption("⚡ Simulated")
-            else:
-                st.info(f"**{flag_a} {match['teamA_name']}** vs **{match['teamB_name']} {flag_b}** - Scheduled")
-    else:
-        st.info("Quarter-final matches not yet generated. Admin can start the tournament.")
-
-def show_matches():
-    st.title("⚽ Matches & Fixtures")
-    db = get_database()
-    
-    if db is None:
-        st.error("❌ Database not available")
-        return
-        
-    matches = list(db.matches.find({}).sort("stage", 1))
-    
-    if not matches:
-        st.info("No matches scheduled yet. Tournament needs to be started by admin.")
-        return
-    
-    for match in matches:
-        flag_a = COUNTRY_FLAGS.get(match.get('teamA_name', 'Team A'), "🏴")
-        flag_b = COUNTRY_FLAGS.get(match.get('teamB_name', 'Team B'), "🏴")
-        
-        with st.expander(f"{match.get('stage', 'Match').title()}: {flag_a} {match.get('teamA_name', 'Team A')} vs {match.get('teamB_name', 'Team B')} {flag_b}"):
-            if match.get('status') == 'completed':
-                st.success(f"**Final Score: {match['scoreA']}-{match['scoreB']}**")
-                st.write(f"**Method:** {match.get('method', 'unknown').title()}")
-                st.write(f"**Stage:** {match.get('stage', 'Unknown').title()}")
-                
-                if match.get('goal_scorers'):
-                    st.write("**Goal Scorers:**")
-                    for goal in match['goal_scorers']:
-                        flag = COUNTRY_FLAGS.get(goal['team'], "🏴")
-                        st.write(f"- {flag} {goal['player']} ({goal['minute']}')")
-                
-                if match.get('method') == 'played' and match.get('commentary'):
-                    st.write("**Match Commentary:**")
-                    for comment in match['commentary'][:8]:
-                        st.write(f"- {comment}")
-            else:
-                st.info("**Status:** Scheduled")
-                st.write(f"**Stage:** {match.get('stage', 'Unknown').title()}")
-
 def show_statistics():
-    st.title("📊 Statistics & Analytics")
+    st.title("📊 Tournament Statistics")
     db = get_database()
     
     if db is None:
         st.error("❌ Database not available")
         return
+    
+    show_statistics_content(db, False)
+
+def show_statistics_content(db, is_admin=False):
+    """Display statistics content (used by both Analytics and Statistics pages)"""
     
     st.subheader("🏆 Team Standings")
     teams = list(db.federations.find({}).sort("rating", -1))
@@ -816,6 +1028,15 @@ def show_statistics():
     with col1: st.metric("Total Matches", len(matches))
     with col2: st.metric("Completed Matches", len([m for m in matches if m.get('status') == 'completed']))
     with col3: st.metric("Total Goals", len(all_goal_scorers))
+    
+    # Admin-only analytics
+    if is_admin:
+        st.subheader("🔧 Database Info")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Total Teams", db.federations.count_documents({}))
+        with col2:
+            st.metric("Total Users", db.users.count_documents({}))
 
 if __name__ == "__main__":
     main()
