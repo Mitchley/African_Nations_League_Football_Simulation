@@ -8,6 +8,16 @@ from frontend.utils.match_simulator import simulate_match
 
 init_session_state()
 
+# Country flags dictionary
+COUNTRY_FLAGS = {
+    "Algeria": "🇩🇿", "Angola": "🇦🇴", "Benin": "🇧🇯", "Botswana": "🇧🇼",
+    "Burkina Faso": "🇧🇫", "Burundi": "🇧🇮", "Cameroon": "🇨🇲", "Cape Verde": "🇨🇻",
+    "DR Congo": "🇨🇩", "Egypt": "🇪🇬", "Ethiopia": "🇪🇹", "Ghana": "🇬🇭",
+    "Ivory Coast": "🇨🇮", "Kenya": "🇰🇪", "Morocco": "🇲🇦", "Mozambique": "🇲🇿",
+    "Nigeria": "🇳🇬", "Senegal": "🇸🇳", "South Africa": "🇿🇦", "Tanzania": "🇹🇿",
+    "Tunisia": "🇹🇳", "Uganda": "🇺🇬", "Zambia": "🇿🇲", "Zimbabwe": "🇿🇼"
+}
+
 AFRICAN_COUNTRIES = ["Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Cape Verde", "DR Congo", "Egypt", "Ethiopia", "Ghana", "Ivory Coast", "Kenya", "Morocco", "Mozambique", "Nigeria", "Senegal", "South Africa", "Tanzania", "Tunisia", "Uganda", "Zambia", "Zimbabwe"]
 
 AFRICAN_FIRST_NAMES = ["Mohamed", "Youssef", "Ahmed", "Kofi", "Kwame", "Adebayo", "Tendai", "Blessing", "Ibrahim", "Abdul", "Chinedu", "Faith"]
@@ -417,6 +427,29 @@ def show_home():
     
     st.markdown("---")
     
+    # Display registered teams with flags
+    st.subheader("🇺🇳 Registered Teams")
+    teams = list(db.federations.find({}))
+    
+    if teams:
+        # Create columns for team display
+        cols = st.columns(4)
+        for i, team in enumerate(teams):
+            with cols[i % 4]:
+                flag = COUNTRY_FLAGS.get(team['country'], "🏴")
+                st.markdown(f"""
+                <div style="border: 2px solid #4CAF50; border-radius: 10px; padding: 10px; margin: 5px; text-align: center; background: linear-gradient(135deg, #f5f5f5, #e0e0e0);">
+                    <h3 style="margin: 0; font-size: 1.5em;">{flag}</h3>
+                    <h4 style="margin: 5px 0; color: #2E7D32;">{team['country']}</h4>
+                    <p style="margin: 2px 0; font-size: 0.9em; color: #666;">Rating: {team.get('rating', 75)}</p>
+                    <p style="margin: 2px 0; font-size: 0.8em; color: #888;">Manager: {team.get('manager', 'Unknown')}</p>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.info("No teams registered yet. Be the first to register!")
+    
+    st.markdown("---")
+    
     if st.session_state.role == 'admin':
         st.subheader("🛠️ Quick Actions")
         col1, col2 = st.columns(2)
@@ -425,13 +458,22 @@ def show_home():
                 db.tournaments.update_one({}, {"$set": {"status": "active"}}, upsert=True)
                 st.success("Tournament started!")
                 st.rerun()
+        with col2:
+            if st.button("Reset All Data", key="home_reset"):
+                db.federations.delete_many({})
+                db.matches.delete_many({})
+                db.tournaments.delete_many({})
+                st.success("All data reset!")
+                st.rerun()
     elif st.session_state.role == 'federation':
         user_team = db.federations.find_one({"representative_email": st.session_state.user['email']})
         if user_team:
-            st.subheader(f"🇺🇳 Your Team: {user_team['country']}")
-            col1, col2 = st.columns(2)
+            flag = COUNTRY_FLAGS.get(user_team['country'], "🏴")
+            st.subheader(f"{flag} Your Team: {user_team['country']}")
+            col1, col2, col3 = st.columns(3)
             with col1: st.metric("Rating", user_team.get('rating', 75))
             with col2: st.metric("Players", len(user_team.get('players', [])))
+            with col3: st.metric("Manager", user_team.get('manager', 'Unknown'))
 
 def show_admin():
     if st.session_state.role != 'admin':
@@ -500,27 +542,114 @@ def show_match_interface(db, match_info):
             simulate_match_quick(db, match_info['match'], teamA_name, teamB_name)
 
 def play_match(db, match, teamA_name, teamB_name):
-    st.info("🔄 Playing match with commentary...")
+    st.info("🔄 Playing match with AI commentary...")
     
-    # Simulate match with commentary
-    commentary = [f"Match between {teamA_name} and {teamB_name} kicks off!"]
+    # Enhanced AI commentary phrases
+    commentary_phrases = {
+        "start": [
+            f"🏆 AFRICAN NATIONS LEAGUE: {teamA_name} vs {teamB_name} kicks off!",
+            f"The atmosphere is electric as {teamA_name} and {teamB_name} begin this African classic!",
+            f"We're underway in this thrilling African encounter between {teamA_name} and {teamB_name}!"
+        ],
+        "early_game": [
+            "Both teams showing great African flair and skill early on!",
+            "The pace is frantic! Typical African football at its best!",
+            "You can feel the passion from both sets of players!",
+            "Beautiful passing football on display from these African giants!"
+        ],
+        "chances": [
+            "What a chance! So close to opening the scoring!",
+            "Brilliant save! The goalkeeper comes to the rescue!",
+            "The woodwork! That was inches away from a spectacular goal!",
+            "Great defensive work to deny a clear opportunity!",
+            "The striker should have done better with that chance!"
+        ],
+        "goals": [
+            "GOAL! What a moment for African football!",
+            "The stadium erupts! What a finish!",
+            "Beautiful team play leading to that goal!",
+            "A moment of individual brilliance breaks the deadlock!",
+            "That's why they call it the beautiful game!"
+        ],
+        "second_half": [
+            "The second half begins with both teams pushing for victory!",
+            "You can feel the tension building as we enter the final stages!",
+            "Both managers making tactical changes to influence the game!",
+            "The players are showing incredible fitness levels!"
+        ],
+        "end_game": [
+            "Last minute drama! What a match we're witnessing!",
+            "The pressure is immense as we approach full time!",
+            "Both teams giving everything for the African Nations League!",
+            "This is what African football is all about - passion and skill!"
+        ],
+        "full_time": [
+            "🏁 FULL TIME! Another thrilling African Nations League encounter!",
+            "What a spectacle of African football we've witnessed today!",
+            "The final whistle blows on an unforgettable African classic!",
+            "African football at its absolute finest - what a match!"
+        ]
+    }
+    
+    # Simulate match with enhanced AI commentary
+    commentary = [random.choice(commentary_phrases["start"])]
     score_a, score_b = 0, 0
     goal_scorers = []
     
-    for minute in range(1, 91):
-        # Chance for events
-        if random.random() < 0.05:  # 5% chance per minute for goal
-            if random.random() < 0.5:
+    # First half commentary
+    for minute in range(1, 46):
+        if random.random() < 0.06:  # 6% chance per minute for goal
+            scoring_team = teamA_name if random.random() < 0.5 else teamB_name
+            if scoring_team == teamA_name:
                 score_a += 1
-                commentary.append(f"{minute}' - GOAL! {teamA_name} scores!")
-                goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": minute, "team": teamA_name})
             else:
                 score_b += 1
-                commentary.append(f"{minute}' - GOAL! {teamB_name} scores!")
-                goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": minute, "team": teamB_name})
-        elif random.random() < 0.08:  # Other match events
-            events = ["Great save!", "Corner kick", "Yellow card", "Close chance!"]
+                
+            commentary.append(f"⚽ {minute}' - {random.choice(commentary_phrases['goals'])} {scoring_team} scores!")
+            goal_scorers.append({
+                "player": f"Player {random.randint(1, 23)}", 
+                "minute": minute, 
+                "team": scoring_team
+            })
+        elif minute == 15 and random.random() < 0.8:
+            commentary.append(f"15' - {random.choice(commentary_phrases['early_game'])}")
+        elif minute == 30 and random.random() < 0.7:
+            commentary.append(f"30' - {random.choice(commentary_phrases['chances'])}")
+    
+    # Half time commentary
+    commentary.append(f"45+1' - HALF TIME: {teamA_name} {score_a}-{score_b} {teamB_name}. An exciting African football spectacle!")
+    
+    # Second half commentary
+    commentary.append(f"46' - {random.choice(commentary_phrases['second_half'])}")
+    
+    for minute in range(46, 91):
+        if random.random() < 0.07:  # Slightly higher chance in second half
+            scoring_team = teamA_name if random.random() < 0.5 else teamB_name
+            if scoring_team == teamA_name:
+                score_a += 1
+            else:
+                score_b += 1
+                
+            commentary.append(f"⚽ {minute}' - {random.choice(commentary_phrases['goals'])} {scoring_team} scores!")
+            goal_scorers.append({
+                "player": f"Player {random.randint(1, 23)}", 
+                "minute": minute, 
+                "team": scoring_team
+            })
+        elif minute == 75 and random.random() < 0.8:
+            commentary.append(f"75' - {random.choice(commentary_phrases['end_game'])}")
+        elif random.random() < 0.05:  # Other match events
+            events = [
+                "Yellow card shown for a reckless challenge!",
+                "Tactical substitution as fresh legs enter the pitch!",
+                "The crowd is creating an incredible African atmosphere!",
+                "What a piece of skill! The African flair is on show!",
+                "The referee has a big decision to make here!"
+            ]
             commentary.append(f"{minute}' - {random.choice(events)}")
+    
+    # Full time commentary
+    commentary.append(random.choice(commentary_phrases["full_time"]))
     
     # Update match in database
     db.matches.update_one(
@@ -535,7 +664,23 @@ def play_match(db, match, teamA_name, teamB_name):
         }}
     )
     
-    st.success(f"✅ Match completed: {teamA_name} {score_a}-{score_b} {teamB_name}")
+    flag_a = COUNTRY_FLAGS.get(teamA_name, "🏴")
+    flag_b = COUNTRY_FLAGS.get(teamB_name, "🏴")
+    st.success(f"✅ Match completed: {flag_a} {teamA_name} {score_a}-{score_b} {teamB_name} {flag_b}")
+    
+    # Show match summary
+    with st.expander("📝 Match Summary"):
+        st.write(f"**Final Score:** {teamA_name} {score_a} - {score_b} {teamB_name}")
+        if goal_scorers:
+            st.write("**Goal Scorers:**")
+            for goal in goal_scorers:
+                flag = COUNTRY_FLAGS.get(goal['team'], "🏴")
+                st.write(f"- {flag} {goal['player']} ({goal['minute']}')")
+        
+        st.write("**Match Commentary:**")
+        for comment in commentary:
+            st.write(f"• {comment}")
+    
     st.rerun()
 
 def simulate_match_quick(db, match, teamA_name, teamB_name):
@@ -560,7 +705,9 @@ def simulate_match_quick(db, match, teamA_name, teamB_name):
         }}
     )
     
-    st.success(f"✅ Match simulated: {teamA_name} {score_a}-{score_b} {teamB_name}")
+    flag_a = COUNTRY_FLAGS.get(teamA_name, "🏴")
+    flag_b = COUNTRY_FLAGS.get(teamB_name, "🏴")
+    st.success(f"✅ Match simulated: {flag_a} {teamA_name} {score_a}-{score_b} {teamB_name} {flag_b}")
     st.rerun()
 
 def show_federation():
@@ -574,8 +721,9 @@ def show_federation():
     user_team = db.federations.find_one({"representative_email": st.session_state.user['email']})
     
     if user_team:
+        flag = COUNTRY_FLAGS.get(user_team['country'], "🏴")
         col1, col2, col3 = st.columns(3)
-        with col1: st.metric("Team", user_team['country'])
+        with col1: st.metric("Team", f"{flag} {user_team['country']}")
         with col2: st.metric("Manager", user_team.get('manager', 'Unknown'))
         with col3: st.metric("Rating", user_team.get('rating', 75))
         
@@ -597,27 +745,33 @@ def show_tournament():
     st.header("AFRICAN NATIONS LEAGUE 2025")
     st.subheader("ROAD TO THE FINAL")
     
+    # Display teams with flags if no matches
+    if not matches and teams:
+        st.subheader("🇺🇳 Qualified Teams")
+        cols = st.columns(4)
+        for i, team in enumerate(teams):
+            with cols[i % 4]:
+                flag = COUNTRY_FLAGS.get(team['country'], "🏴")
+                st.markdown(f"""
+                <div style="border: 2px solid #FFD700; border-radius: 10px; padding: 10px; margin: 5px; text-align: center; background: linear-gradient(135deg, #fff9c4, #ffeb3b);">
+                    <h3 style="margin: 0; font-size: 2em;">{flag}</h3>
+                    <h4 style="margin: 5px 0; color: #1e3c72;">{team['country']}</h4>
+                    <p style="margin: 2px 0; font-size: 0.9em; color: #666;">Rating: {team.get('rating', 75)}</p>
+                </div>
+                """, unsafe_allow_html=True)
+    
     # Quarter Finals
-    st.write("### Quarter Finals")
+    st.write("### 🎯 Quarter Finals")
     qf_matches = [m for m in matches if m.get('stage') == 'quarterfinal']
     
     for match in qf_matches:
+        flag_a = COUNTRY_FLAGS.get(match['teamA_name'], "🏴")
+        flag_b = COUNTRY_FLAGS.get(match['teamB_name'], "🏴")
+        
         if match.get('status') == 'completed':
-            st.success(f"**{match['teamA_name']}** {match['scoreA']}-{match['scoreB']} **{match['teamB_name']}**")
+            st.success(f"**{flag_a} {match['teamA_name']}** {match['scoreA']}-{match['scoreB']} **{match['teamB_name']} {flag_b}**")
         else:
-            st.info(f"**{match['teamA_name']}** vs **{match['teamB_name']}** - Scheduled")
-    
-    # Show teams if no matches yet
-    if not qf_matches and teams:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**Left Bracket**")
-            for team in teams[:4]:
-                st.write(f"• {team['country']}")
-        with col2:
-            st.write("**Right Bracket**")
-            for team in teams[4:8]:
-                st.write(f"• {team['country']}")
+            st.info(f"**{flag_a} {match['teamA_name']}** vs **{match['teamB_name']} {flag_b}** - Scheduled")
 
 def show_matches():
     st.title("⚽ Matches & Fixtures")
@@ -626,7 +780,10 @@ def show_matches():
     matches = list(db.matches.find({}))
     
     for match in matches:
-        with st.expander(f"{match.get('teamA_name', 'Team A')} vs {match.get('teamB_name', 'Team B')}"):
+        flag_a = COUNTRY_FLAGS.get(match.get('teamA_name', 'Team A'), "🏴")
+        flag_b = COUNTRY_FLAGS.get(match.get('teamB_name', 'Team B'), "🏴")
+        
+        with st.expander(f"{flag_a} {match.get('teamA_name', 'Team A')} vs {match.get('teamB_name', 'Team B')} {flag_b}"):
             if match.get('status') == 'completed':
                 st.success(f"**Final Score: {match['scoreA']}-{match['scoreB']}**")
                 st.write(f"**Method:** {match.get('method', 'unknown').title()}")
@@ -634,7 +791,8 @@ def show_matches():
                 if match.get('goal_scorers'):
                     st.write("**Goal Scorers:**")
                     for goal in match['goal_scorers']:
-                        st.write(f"- {goal['player']} ({goal['minute']}')")
+                        flag = COUNTRY_FLAGS.get(goal['team'], "🏴")
+                        st.write(f"- {flag} {goal['player']} ({goal['minute']}')")
                 
                 if match.get('method') == 'played' and match.get('commentary'):
                     st.write("**Match Commentary:**")
@@ -647,11 +805,20 @@ def show_statistics():
     st.title("📊 Statistics")
     db = get_database()
     
-    # Team Standings
+    # Team Standings with flags
     st.subheader("🏆 Team Standings")
-    teams = list(db.federations.find({}))
-    for team in teams:
-        st.write(f"**{team['country']}** - Rating: {team.get('rating', 75)}")
+    teams = list(db.federations.find({}).sort("rating", -1))
+    
+    for i, team in enumerate(teams):
+        flag = COUNTRY_FLAGS.get(team['country'], "🏴")
+        if i == 0:
+            st.write(f"🥇 **{flag} {team['country']}** - Rating: {team.get('rating', 75)} - Manager: {team.get('manager', 'Unknown')}")
+        elif i == 1:
+            st.write(f"🥈 **{flag} {team['country']}** - Rating: {team.get('rating', 75)} - Manager: {team.get('manager', 'Unknown')}")
+        elif i == 2:
+            st.write(f"🥉 **{flag} {team['country']}** - Rating: {team.get('rating', 75)} - Manager: {team.get('manager', 'Unknown')}")
+        else:
+            st.write(f"**{flag} {team['country']}** - Rating: {team.get('rating', 75)} - Manager: {team.get('manager', 'Unknown')}")
     
     # Top Scorers
     st.subheader("🥅 Top Scorers")
@@ -668,10 +835,11 @@ def show_statistics():
         player = goal['player']
         goal_counts[player] = goal_counts.get(player, 0) + 1
     
-    for player, goals in sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
-        st.write(f"**{player}** - {goals} goals")
+    for i, (player, goals) in enumerate(sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)[:5]):
+        if i == 0:
+            st.write(f"🏅 **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+        else:
+            st.write(f"**{player}** - {goals} goal{'s' if goals > 1 else ''}")
 
 if __name__ == "__main__":
     main()
-
-
