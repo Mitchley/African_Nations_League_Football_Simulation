@@ -63,9 +63,9 @@ def main():
         if not st.session_state.get('user'):
             show_login_page()
         else:
-            # Set home dashboard as default landing page for all users after login
+            # Set Home as default landing page for all users after login
             if 'current_page' not in st.session_state:
-                st.session_state.current_page = "🏠 Home Dashboard"
+                st.session_state.current_page = "🏠 Home"
             show_app()
     except Exception as e:
         st.error(f"Application error: {str(e)}")
@@ -104,7 +104,7 @@ def show_login_page():
         if st.button("👀 Enter as Visitor", use_container_width=True, type="primary"):
             st.session_state.user = {"email": "visitor", "role": "visitor"}
             st.session_state.role = "visitor"
-            st.session_state.current_page = "🏠 Home Dashboard"  # Set home as default
+            st.session_state.current_page = "🏠 Home"  # Set Home as default
             st.rerun()
 
 def show_federation_registration():
@@ -126,7 +126,7 @@ def show_federation_registration():
             if register_federation(country, manager, rep_name, rep_email, password):
                 st.success("Federation registered successfully!")
                 if login_user(rep_email, password):
-                    st.session_state.current_page = "🏠 Home Dashboard"; st.rerun()
+                    st.session_state.current_page = "🏠 Home"; st.rerun()
 
 def register_federation(country, manager, rep_name, rep_email, password):
     try:
@@ -161,17 +161,19 @@ def generate_realistic_squad():
 def show_app():
     with st.sidebar:
         st.markdown(f"### 👋 Welcome, {st.session_state.user['email']}"); st.markdown(f"**Role:** {st.session_state.role.upper()}"); st.markdown("---")
-        if st.session_state.role == "admin": pages = ["🏠 Home Dashboard", "🏆 Tournament Bracket", "⚽ Match Control", "📊 Analytics"]
-        elif st.session_state.role == "federation": pages = ["🏠 Home Dashboard", "🏆 Tournament Bracket", "👥 My Team", "📊 Statistics"]
-        else: pages = ["🏠 Home Dashboard", "🏆 Tournament Bracket", "📊 Statistics"]
+        # Updated page names with "Home" instead of "Home Dashboard"
+        if st.session_state.role == "admin": pages = ["🏠 Home", "🏆 Tournament Bracket", "⚽ Match Control", "📊 Analytics"]
+        elif st.session_state.role == "federation": pages = ["🏠 Home", "🏆 Tournament Bracket", "👥 My Team", "📊 Statistics"]
+        else: pages = ["🏠 Home", "🏆 Tournament Bracket", "📊 Statistics"]
         for page in pages:
             if st.button(page, use_container_width=True, type="primary" if st.session_state.get('current_page') == page else "secondary"):
                 st.session_state.current_page = page; st.rerun()
         st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True): logout_user(); st.rerun()
     
-    current_page = st.session_state.get('current_page', '🏠 Home Dashboard')
-    if current_page == "🏠 Home Dashboard": show_home_dashboard()
+    current_page = st.session_state.get('current_page', '🏠 Home')
+    # Updated function calls to use "Home" instead of "Home Dashboard"
+    if current_page == "🏠 Home": show_home_dashboard()
     elif current_page == "🏆 Tournament Bracket": show_tournament_bracket()
     elif current_page == "⚽ Match Control": show_match_control()
     elif current_page == "👥 My Team": show_my_team()
