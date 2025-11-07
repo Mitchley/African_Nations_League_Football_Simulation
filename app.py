@@ -342,9 +342,9 @@ def show_enhanced_tournament_bracket(db):
                 winner = team_a_name if final_match['scoreA'] > final_match['scoreB'] else team_b_name
                 winner_flag = COUNTRY_FLAGS.get(winner, "🏆") if winner != "TBD" else "🏆"
                 
-                st.markdown(f"""<div style="background: linear-gradient(135deg, #FFD700 0%, #FFEC8B 100%); padding: 2rem; border-radius: 15px; text-align: center; border: 3px solid #1E3C72; margin-top: 1rem;"><h2 style="color: #1E3C72; margin: 0;">🏆 TOURNAMENT CHAMPION 🏆</h2><h1 style="color: #1E3C72; margin: 1rem 0; font-size: 2.5em;">{winner_flag} {winner}</h1><p style="color: #1E3C72; margin: 0; font-size: 1.1em;">African Nations League 2025 Winner</p><div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.5); border-radius: 10px;"><strong>Final Score: {team_a_name} {final_match['scoreA']} - {final_match['scoreB']} {team_b_name}</strong></div></div>""", unsafe_allow_html=True)
+                # CHANGED: Final score now in blue color for better visibility
+                st.markdown(f"""<div style="background: linear-gradient(135deg, #FFD700 0%, #FFEC8B 100%); padding: 2rem; border-radius: 15px; text-align: center; border: 3px solid #1E3C72; margin-top: 1rem;"><h2 style="color: #1E3C72; margin: 0;">🏆 TOURNAMENT CHAMPION 🏆</h2><h1 style="color: #1E3C72; margin: 1rem 0; font-size: 2.5em;">{winner_flag} {winner}</h1><p style="color: #1E3C72; margin: 0; font-size: 1.1em;">African Nations League 2025 Winner</p><div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.5); border-radius: 10px;"><strong style="color: #1E3C72; font-size: 1.2em;">Final Score: {team_a_name} {final_match['scoreA']} - {final_match['scoreB']} {team_b_name}</strong></div></div>""", unsafe_allow_html=True)
             else: display_enhanced_match_card(final_match, "FINAL", "CHAMPION")
-
 def display_enhanced_match_card(match, match_label, next_round):
     # Handle NULL/None team names by providing defaults
     team_a_name = match.get('teamA_name') or "TBD"
