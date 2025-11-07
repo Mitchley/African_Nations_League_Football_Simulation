@@ -80,18 +80,18 @@ def show_login_page():
     st.subheader("🎯 What You Can Do")
     col1, col2, col3 = st.columns(3)
     with col1: st.markdown("""<div class="feature-card"><h3>⚽ Realistic Match Simulation</h3><p>AI-powered matches with realistic outcomes</p></div>""", unsafe_allow_html=True)
-    with col2: st.markdown("""<div class="feature-card"><h3>🌍 Represent Your Nation</h3><p>Lead your country to continental glory</p></div>""", unsafe_allow_html=True)
+    with col2: st.markdown("""<div class="feature-card"><h3>🌍 Represent Your Nation</h3><p>Lead your country to continental glory by registering and participating in the tournament</p></div>""", unsafe_allow_html=True)
     with col3: st.markdown("""<div class="feature-card"><h3>📊 Live Tournament Tracking</h3><p>Follow the complete tournament bracket</p></div>""", unsafe_allow_html=True)
     
     st.markdown("---")
     st.subheader("🔐 Get Started - Choose Your Role")
     
-    tab1, tab2, tab3 = st.tabs(["👑 Admin Login", "🇺🇳 Federation Sign Up", "👀 Visitor Access"])
+    tab1, tab2, tab3 = st.tabs([" Admin Login", " Federation Sign Up", " Visitor Access"])
     with tab1:
         with st.form("admin_login"):
             email = st.text_input("Email", placeholder="admin@africanleague.com")
             password = st.text_input("Password", type="password")
-            if st.form_submit_button("🚀 Login as Admin", use_container_width=True):
+            if st.form_submit_button(" Login as Admin", use_container_width=True):
                 if login_user(email, password):
                     st.success("Welcome Admin!"); time.sleep(1); st.rerun()
                 else: st.error("Invalid credentials")
@@ -520,30 +520,7 @@ def show_statistics_content(is_admin):
                         st.metric(f"{['🥇', '🥈', '🥉'][i]} {team['country']}", f"Rating: {team.get('rating', 75)}")
         else: st.info("No teams registered yet")
         
-        st.subheader("🥅 Top Scorers"); matches = list(db.matches.find({"status": "completed"})); goal_scorers = []
-        for match in matches:
-            for goal in match.get('goal_scorers', []):
-                goal_with_details = goal.copy(); goal_with_details['match_id'] = match['_id']; goal_with_details['stage'] = match.get('stage', 'Unknown'); goal_with_details['country'] = goal['team']; goal_scorers.append(goal_with_details)
-        if goal_scorers:
-            scorer_counts = {}
-            for goal in goal_scorers:
-                key = (goal['player'], goal['country'])
-                if key not in scorer_counts: scorer_counts[key] = {'goals': 0, 'matches': set(), 'details': []}
-                scorer_counts[key]['goals'] += 1; scorer_counts[key]['matches'].add(goal['match_id'])
-                opponent = None
-                for m in matches:
-                    if m['_id'] == goal['match_id']: opponent = m['teamB_name'] if goal['team'] == m['teamA_name'] else m['teamA_name']; break
-                scorer_counts[key]['details'].append({'minute': goal['minute'], 'stage': goal['stage'], 'opponent': opponent or 'Unknown', 'score': f"{match['scoreA']}-{match['scoreB']}" if opponent else 'Unknown', 'assist': goal.get('assist', 'Unassisted')})
-            sorted_scorers = sorted(scorer_counts.items(), key=lambda x: x[1]['goals'], reverse=True)
-            for i, ((player, country), data) in enumerate(sorted_scorers[:10]):
-                flag = COUNTRY_FLAGS.get(country, "🏴")
-                with st.expander(f"**{i+1}. {player}** - {flag} {country} - {data['goals']} goals ({len(data['matches'])} matches)", expanded=i < 3):
-                    col1, col2 = st.columns([2, 1])
-                    with col1:
-                        for detail in sorted(data['details'], key=lambda x: x['minute']): st.write(f"• {detail['minute']}' - vs {detail['opponent']} ({detail['score']}) - {detail['stage'].title()}"); st.write(f"  {detail['assist']}")
-                    with col2: st.metric("Total Goals", data['goals']); st.metric("Matches Scored In", len(data['matches'])); st.metric("Goals per Match", f"{data['goals']/len(data['matches']):.1f}")
-        else: st.info("No goals scored yet")
-        
+             
         st.subheader("📅 Match History")
         if matches:
             completed_matches = [m for m in matches if m.get('status') == 'completed']
