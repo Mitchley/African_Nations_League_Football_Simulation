@@ -824,9 +824,33 @@ def play_match_with_commentary(match):
             st.error("Database unavailable")
             return
             
+        # Get team data for realistic names
+        team_a = db.federations.find_one({"country": match['teamA_name']})
+        team_b = db.federations.find_one({"country": match['teamB_name']})
+        
         score_a, score_b, goal_scorers, commentary = simulate_match_with_commentary(
             db, match["_id"], match['teamA_name'], match['teamB_name']
         )
+        
+        # Enhance goal_scorers with realistic names if available
+        enhanced_goal_scorers = []
+        for goal in goal_scorers:
+            enhanced_goal = goal.copy()
+            if goal['team'] == match['teamA_name'] and team_a and 'players' in team_a:
+                # Replace generic name with actual player name
+                player = random.choice(team_a['players'])
+                enhanced_goal['player'] = player['name']
+                assister = random.choice(team_a['players'])
+                enhanced_goal['assist'] = f"Assist: {assister['name']}" if player['name'] != assister['name'] else "Solo goal"
+            elif goal['team'] == match['teamB_name'] and team_b and 'players' in team_b:
+                player = random.choice(team_b['players'])
+                enhanced_goal['player'] = player['name']
+                assister = random.choice(team_b['players'])
+                enhanced_goal['assist'] = f"Assist: {assister['name']}" if player['name'] != assister['name'] else "Solo goal"
+            else:
+                enhanced_goal['assist'] = "Unassisted"
+            
+            enhanced_goal_scorers.append(enhanced_goal)
         
         st.success(f"**Final: {match['teamA_name']} {score_a}-{score_b} {match['teamB_name']}**")
         
@@ -834,10 +858,23 @@ def play_match_with_commentary(match):
             for comment in commentary:
                 st.write(f"• {comment}")
         
-        if goal_scorers:
+        if enhanced_goal_scorers:
             st.write("**Goal Scorers:**")
-            for goal in goal_scorers:
-                st.write(f"- {goal['player']} ({goal['minute']}') - {goal['team']}")
+            for goal in enhanced_goal_scorers:
+                flag = COUNTRY_FLAGS.get(goal['team'], "🏴")
+                st.write(f"- {goal['minute']}' - {flag} **{goal['player']}** ({goal['team']}) - {goal.get('assist', 'Unassisted')}")
+        
+        # Update match with enhanced goal data
+        db.matches.update_one(
+            {"_id": match["_id"]},
+            {"$set": {
+                "status": "completed",
+                "scoreA": score_a,
+                "scoreB": score_b,
+                "goal_scorers": enhanced_goal_scorers,
+                "method": "commentary"
+            }}
+        )
         
         advance_tournament(db, match)
         st.rerun()
@@ -855,11 +892,54 @@ def simulate_match_quick(match):
     score_a = random.randint(0, 3)
     score_b = random.randint(0, 3)
     
+    # Get team data for realistic player names
+    team_a = db.federations.find_one({"country": match['teamA_name']})
+    team_b = db.federations.find_one({"country": match['teamB_name']})
+    
     goal_scorers = []
+    
+    # Generate goals for team A with realistic names
     for i in range(score_a):
-        goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": random.randint(1, 90), "team": match['teamA_name']})
+        if team_a and 'players' in team_a:
+            scorer = random.choice(team_a['players'])
+            assister = random.choice(team_a['players'])
+            goal_scorers.append({
+                "player": scorer['name'],
+                "minute": random.randint(1, 90),
+                "team": match['teamA_name'],
+                "assist": f"Assist: {assister['name']}" if scorer['name'] != assister['name'] else "Solo goal"
+            })
+        else:
+            # Fallback if team data not available
+            goal_scorers.append({
+                "player": f"Player {random.randint(1, 23)}",
+                "minute": random.randint(1, 90),
+                "team": match['teamA_name'],
+                "assist": f"Assist: Player {random.randint(1, 23)}"
+            })
+    
+    # Generate goals for team B with realistic names
     for i in range(score_b):
-        goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": random.randint(1, 90), "team": match['teamB_name']})
+        if team_b and 'players' in team_b:
+            scorer = random.choice(team_b['players'])
+            assister = random.choice(team_b['players'])
+            goal_scorers.append({
+                "player": scorer['name'],
+                "minute": random.randint(1, 90),
+                "team": match['teamB_name'],
+                "assist": f"Assist: {assister['name']}" if scorer['name'] != assister['name'] else "Solo goal"
+            })
+        else:
+            # Fallback if team data not available
+            goal_scorers.append({
+                "player": f"Player {random.randint(1, 23)}",
+                "minute": random.randint(1, 90),
+                "team": match['teamB_name'],
+                "assist": f"Assist: Player {random.randint(1, 23)}"
+            })
+    
+    # Sort goals by minute
+    goal_scorers.sort(key=lambda x: x['minute'])
     
     try:
         db.matches.update_one(
@@ -1073,21 +1153,113 @@ def show_statistics_content(is_admin):
         else:
             st.info("No teams registered yet")
         
+        # IMPROVED TOP SCORERS SECTION
         st.subheader("🥅 Top Scorers")
         matches = list(db.matches.find({"status": "completed"}))
         goal_scorers = []
+        
+        # Enhanced goal tracking with player details
         for match in matches:
-            goal_scorers.extend(match.get('goal_scorers', []))
+            for goal in match.get('goal_scorers', []):
+                # Add match details and country to each goal
+                goal_with_details = goal.copy()
+                goal_with_details['match_id'] = match['_id']
+                goal_with_details['stage'] = match.get('stage', 'Unknown')
+                goal_with_details['country'] = goal['team']
+                goal_scorers.append(goal_with_details)
         
         if goal_scorers:
+            # Group goals by player and country
             scorer_counts = {}
             for goal in goal_scorers:
-                scorer_counts[goal['player']] = scorer_counts.get(goal['player'], 0) + 1
+                key = (goal['player'], goal['country'])
+                if key not in scorer_counts:
+                    scorer_counts[key] = {
+                        'goals': 0,
+                        'matches': set(),
+                        'details': []
+                    }
+                scorer_counts[key]['goals'] += 1
+                scorer_counts[key]['matches'].add(goal['match_id'])
+                # Find opponent for this goal
+                opponent = None
+                for m in matches:
+                    if m['_id'] == goal['match_id']:
+                        opponent = m['teamB_name'] if goal['team'] == m['teamA_name'] else m['teamA_name']
+                        break
+                
+                scorer_counts[key]['details'].append({
+                    'minute': goal['minute'],
+                    'stage': goal['stage'],
+                    'opponent': opponent or 'Unknown',
+                    'score': f"{match['scoreA']}-{match['scoreB']}" if opponent else 'Unknown',
+                    'assist': goal.get('assist', 'Unassisted')
+                })
             
-            for player, goals in sorted(scorer_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
-                st.write(f"**{player}** - {goals} goals")
+            # Display top scorers with enhanced information
+            sorted_scorers = sorted(scorer_counts.items(), key=lambda x: x[1]['goals'], reverse=True)
+            
+            for i, ((player, country), data) in enumerate(sorted_scorers[:10]):
+                flag = COUNTRY_FLAGS.get(country, "🏴")
+                with st.expander(f"**{i+1}. {player}** - {flag} {country} - {data['goals']} goals ({len(data['matches'])} matches)", expanded=i < 3):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.write("**Goal Details:**")
+                        for detail in sorted(data['details'], key=lambda x: x['minute']):
+                            st.write(f"• {detail['minute']}' - vs {detail['opponent']} ({detail['score']}) - {detail['stage'].title()}")
+                            st.write(f"  {detail['assist']}")
+                    
+                    with col2:
+                        st.metric("Total Goals", data['goals'])
+                        st.metric("Matches Scored In", len(data['matches']))
+                        st.metric("Goals per Match", f"{data['goals']/len(data['matches']):.1f}")
         else:
             st.info("No goals scored yet")
+        
+        # NEW: MATCH HISTORY SECTION
+        st.subheader("📅 Match History")
+        if matches:
+            # Sort matches by date or stage
+            completed_matches = [m for m in matches if m.get('status') == 'completed']
+            
+            if completed_matches:
+                for match in reversed(completed_matches[-10:]):  # Show last 10 matches
+                    flag_a = COUNTRY_FLAGS.get(match.get('teamA_name', 'Team A'), "🏴")
+                    flag_b = COUNTRY_FLAGS.get(match.get('teamB_name', 'Team B'), "🏴")
+                    
+                    with st.expander(f"{flag_a} {match['teamA_name']} {match['scoreA']}-{match['scoreB']} {match['teamB_name']} {flag_b} - {match.get('stage', 'Unknown').title()}", expanded=False):
+                        
+                        # Match summary
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.write(f"**{match['teamA_name']}**")
+                            st.write(f"Goals: {match['scoreA']}")
+                        with col2:
+                            st.write("**Match Info**")
+                            st.write(f"Stage: {match.get('stage', 'Unknown').title()}")
+                            st.write(f"Method: {match.get('method', 'Unknown').title()}")
+                        with col3:
+                            st.write(f"**{match['teamB_name']}**")
+                            st.write(f"Goals: {match['scoreB']}")
+                        
+                        # Goal details with assists
+                        st.write("**Goal Scorers:**")
+                        goal_scorers = match.get('goal_scorers', [])
+                        if goal_scorers:
+                            # Sort goals by minute
+                            sorted_goals = sorted(goal_scorers, key=lambda x: x['minute'])
+                            
+                            for goal in sorted_goals:
+                                flag = COUNTRY_FLAGS.get(goal['team'], "🏴")
+                                assist_info = goal.get('assist', 'Unassisted')
+                                st.write(f"• {goal['minute']}' - {flag} **{goal['player']}** ({goal['team']}) - {assist_info}")
+                        else:
+                            st.info("No goal details available")
+            else:
+                st.info("No completed matches yet")
+        else:
+            st.info("No matches played yet")
             
     except Exception as e:
         st.error(f"Error loading statistics: {str(e)}")
