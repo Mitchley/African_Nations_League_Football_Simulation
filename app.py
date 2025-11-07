@@ -3,7 +3,7 @@ import time
 import random
 from datetime import datetime
 from frontend.utils.auth import init_session_state, login_user, logout_user
-from frontend.utils.database import save_team, get_database, get_players_by_federation, initialize_database
+from frontend.utils.database import save_team, get_database, get_players_by_federation, initialize_database, is_database_available, get_team_count
 from frontend.utils.match_simulator import simulate_match_with_commentary
 
 
@@ -60,14 +60,11 @@ def main():
     with st.sidebar:
         if "MONGODB_URI" in st.secrets:
             st.success("✅ Secrets loaded from Streamlit Cloud")
-            db = get_database()
-            if db:
+            
+            if is_database_available():
                 st.success("✅ Connected to MongoDB")
-                try:
-                    team_count = db.federations.count_documents({})
-                    st.info(f"📊 Database has {team_count} teams")
-                except:
-                    st.info("📊 Checking database...")
+                team_count = get_team_count()
+                st.info(f"📊 Database has {team_count} teams")
             else:
                 st.error("❌ Cannot connect to MongoDB")
         else:
@@ -137,7 +134,7 @@ def show_federation_registration():
     
     db = get_database()
     
-    if not db:
+    if db is None:
         st.error("❌ Database not available. Please check your MongoDB connection.")
         return
     
@@ -275,7 +272,7 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
     try:
         db = get_database()
         
-        if not db:
+        if db is None:
             st.error("❌ Database not available")
             return False
         
@@ -342,6 +339,10 @@ def register_federation(country, manager, rep_name, rep_email, password, squad):
 
 def initialize_tournament(db):
     """Initialize tournament bracket with 8 teams"""
+    if db is None:
+        st.error("❌ Database not available")
+        return
+    
     teams = list(db.federations.find({}).limit(8))
     
     if len(teams) < 8:
@@ -433,7 +434,7 @@ def show_home():
     st.title("🏠 African Nations League Dashboard")
     db = get_database()
     
-    if not db:
+    if db is None:
         st.error("❌ Cannot connect to database. Please check your MongoDB connection.")
         return
     
@@ -483,7 +484,7 @@ def show_admin():
     st.title("👨‍💼 Admin Panel")
     db = get_database()
     
-    if not db:
+    if db is None:
         st.error("❌ Database not available")
         return
     
@@ -611,6 +612,7 @@ def simulate_match_quick(db, match, teamA_name, teamB_name):
     flag_b = COUNTRY_FLAGS.get(teamB_name, "🏴")
     st.success(f"✅ Match simulated: {flag_a} {teamA_name} {score_a}-{score_b} {teamB_name} {flag_b}")
     st.rerun()
+
 def show_federation():
     if st.session_state.role != 'federation':
         st.info("👤 Federation access only")
@@ -619,7 +621,7 @@ def show_federation():
     st.title("🇺🇳 My Federation")
     db = get_database()
     
-    if not db:
+    if db is None:
         st.error("❌ Database not available")
         return
         
@@ -667,7 +669,7 @@ def show_tournament():
     st.title("🏆 Tournament Bracket")
     db = get_database()
     
-    if not db:
+    if db is None:
         st.error("❌ Database not available")
         return
         
@@ -708,7 +710,7 @@ def show_matches():
     st.title("⚽ Matches & Fixtures")
     db = get_database()
     
-    if not db:
+    if db is None:
         st.error("❌ Database not available")
         return
         
@@ -746,7 +748,7 @@ def show_statistics():
     st.title("📊 Statistics & Analytics")
     db = get_database()
     
-    if not db:
+    if db is None:
         st.error("❌ Database not available")
         return
     
@@ -791,15 +793,4 @@ def show_statistics():
             elif i == 2:
                 st.write(f"🥉 **{player}** - {goals} {goal_text}")
             else:
-                st.write(f"**{player}** - {goals} {goal_text}")
-    else:
-        st.info("No goals scored yet")
-    
-    st.subheader("📈 Match Statistics")
-    col1, col2, col3 = st.columns(3)
-    with col1: st.metric("Total Matches", len(matches))
-    with col2: st.metric("Completed Matches", len([m for m in matches if m.get('status') == 'completed']))
-    with col3: st.metric("Total Goals", len(all_goal_scorers))
-
-if __name__ == "__main__":
-    main()
+                st.write(f"**{player}** - {goals}
