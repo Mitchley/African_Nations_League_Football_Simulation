@@ -42,7 +42,8 @@ COUNTRY_FLAGS = {
 
 AFRICAN_COUNTRIES = list(COUNTRY_FLAGS.keys())
 
-# Enhanced CSS
+# Enhanced CSS - FIXED: Use st.markdown() instead of raw CSS
+st.markdown("""
 <style>
     .main-header {
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
@@ -237,6 +238,8 @@ AFRICAN_COUNTRIES = list(COUNTRY_FLAGS.keys())
         padding: 1rem;
     }
 </style>
+""", unsafe_allow_html=True)
+
 def main():
     try:
         initialize_database()
