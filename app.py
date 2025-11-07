@@ -278,7 +278,9 @@ def show_enhanced_tournament_bracket(db):
         st.markdown('<div class="stage-header">QUARTER FINALS</div>', unsafe_allow_html=True)
         quarter_matches = [m for m in matches if m.get('stage') == 'quarterfinal']
         if not quarter_matches: st.info("⏳ Quarter-finals not created")
-        else: [display_enhanced_match_card(match, f"QF {i+1}", "Semi-Finals") for i, match in enumerate(quarter_matches)]
+        else: 
+            for i, match in enumerate(quarter_matches):
+                display_enhanced_match_card(match, f"QF {i+1}", "Semi-Finals")
     
     with col2:
         st.markdown('<div class="stage-header">SEMI FINALS</div>', unsafe_allow_html=True)
@@ -286,12 +288,22 @@ def show_enhanced_tournament_bracket(db):
         if not semi_matches:
             completed_quarters = [m for m in quarter_matches if m.get('status') == 'completed']
             if len(completed_quarters) == 4:
-                winners = [match['teamA_name'] if match['scoreA'] > match['scoreB'] else match['teamB_name'] for match in completed_quarters]
+                winners = []
+                for match in completed_quarters:
+                    # Handle NULL team names when determining winners
+                    team_a = match.get('teamA_name') or "TBD"
+                    team_b = match.get('teamB_name') or "TBD"
+                    winner = team_a if match['scoreA'] > match['scoreB'] else team_b
+                    winners.append(winner)
+                
                 for i in range(0, 4, 2):
-                    flag1 = COUNTRY_FLAGS.get(winners[i], "🏴"); flag2 = COUNTRY_FLAGS.get(winners[i+1], "🏴")
+                    flag1 = COUNTRY_FLAGS.get(winners[i], "🏴") if winners[i] != "TBD" else "❓"
+                    flag2 = COUNTRY_FLAGS.get(winners[i+1], "🏴") if winners[i+1] != "TBD" else "❓"
                     st.markdown(f"""<div class="tournament-bracket" style="background: #e3f2fd;"><div style="text-align: center; font-weight: bold;">Semi-Final {i//2 + 1}</div><div style="text-align: center; margin: 10px 0;">{flag1} {winners[i]}</div><div style="text-align: center; margin: 8px 0; font-weight: bold;">VS</div><div style="text-align: center; margin: 10px 0;">{flag2} {winners[i+1]}</div><div style="text-align: center; color: #1976d2; font-size: 0.9em;">Ready to be created</div></div>""", unsafe_allow_html=True)
             else: st.info("⏳ Waiting for quarter-final results...")
-        else: [display_enhanced_match_card(match, f"SF {i+1}", "Final") for i, match in enumerate(semi_matches)]
+        else: 
+            for i, match in enumerate(semi_matches):
+                display_enhanced_match_card(match, f"SF {i+1}", "Final")
     
     with col3:
         st.markdown('<div class="stage-header">GRAND FINAL</div>', unsafe_allow_html=True)
@@ -299,16 +311,28 @@ def show_enhanced_tournament_bracket(db):
         if not final_matches:
             completed_semis = [m for m in semi_matches if m.get('status') == 'completed']
             if len(completed_semis) == 2:
-                winners = [match['teamA_name'] if match['scoreA'] > match['scoreB'] else match['teamB_name'] for match in completed_semis]
-                flag1 = COUNTRY_FLAGS.get(winners[0], "🏴"); flag2 = COUNTRY_FLAGS.get(winners[1], "🏴")
+                winners = []
+                for match in completed_semis:
+                    # Handle NULL team names when determining winners
+                    team_a = match.get('teamA_name') or "TBD"
+                    team_b = match.get('teamB_name') or "TBD"
+                    winner = team_a if match['scoreA'] > match['scoreB'] else team_b
+                    winners.append(winner)
+                
+                flag1 = COUNTRY_FLAGS.get(winners[0], "🏴") if winners[0] != "TBD" else "❓"
+                flag2 = COUNTRY_FLAGS.get(winners[1], "🏴") if winners[1] != "TBD" else "❓"
                 st.markdown(f"""<div class="tournament-bracket" style="background: #fff3cd; border: 2px solid #FFD700;"><div style="text-align: center; font-weight: bold; color: #856404;">🏆 CHAMPIONSHIP</div><div style="text-align: center; margin: 15px 0; font-size: 1.1em;">{flag1} {winners[0]}</div><div style="text-align: center; margin: 10px 0; font-weight: bold; font-size: 1.2em;">VS</div><div style="text-align: center; margin: 15px 0; font-size: 1.1em;">{flag2} {winners[1]}</div><div style="text-align: center; color: #856404; font-size: 0.9em;">Ready to be created</div></div>""", unsafe_allow_html=True)
             else: st.info("⏳ Waiting for semi-final results...")
         else:
             final_match = final_matches[0]
             if final_match.get('status') == 'completed':
-                winner = final_match['teamA_name'] if final_match['scoreA'] > final_match['scoreB'] else final_match['teamB_name']
-                winner_flag = COUNTRY_FLAGS.get(winner, "🏆")
-                st.markdown(f"""<div style="background: linear-gradient(135deg, #FFD700 0%, #FFEC8B 100%); padding: 2rem; border-radius: 15px; text-align: center; border: 3px solid #1E3C72; margin-top: 1rem;"><h2 style="color: #1E3C72; margin: 0;">🏆 TOURNAMENT CHAMPION 🏆</h2><h1 style="color: #1E3C72; margin: 1rem 0; font-size: 2.5em;">{winner_flag} {winner}</h1><p style="color: #1E3C72; margin: 0; font-size: 1.1em;">African Nations League 2025 Winner</p><div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.5); border-radius: 10px;"><strong>Final Score: {final_match['teamA_name']} {final_match['scoreA']} - {final_match['scoreB']} {final_match['teamB_name']}</strong></div></div>""", unsafe_allow_html=True)
+                # Handle NULL team names in final match
+                team_a_name = final_match.get('teamA_name') or "TBD"
+                team_b_name = final_match.get('teamB_name') or "TBD"
+                winner = team_a_name if final_match['scoreA'] > final_match['scoreB'] else team_b_name
+                winner_flag = COUNTRY_FLAGS.get(winner, "🏆") if winner != "TBD" else "🏆"
+                
+                st.markdown(f"""<div style="background: linear-gradient(135deg, #FFD700 0%, #FFEC8B 100%); padding: 2rem; border-radius: 15px; text-align: center; border: 3px solid #1E3C72; margin-top: 1rem;"><h2 style="color: #1E3C72; margin: 0;">🏆 TOURNAMENT CHAMPION 🏆</h2><h1 style="color: #1E3C72; margin: 1rem 0; font-size: 2.5em;">{winner_flag} {winner}</h1><p style="color: #1E3C72; margin: 0; font-size: 1.1em;">African Nations League 2025 Winner</p><div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.5); border-radius: 10px;"><strong>Final Score: {team_a_name} {final_match['scoreA']} - {final_match['scoreB']} {team_b_name}</strong></div></div>""", unsafe_allow_html=True)
             else: display_enhanced_match_card(final_match, "FINAL", "CHAMPION")
 
 def display_enhanced_match_card(match, match_label, next_round):
@@ -325,7 +349,9 @@ def display_enhanced_match_card(match, match_label, next_round):
         winner_flag = flag_a if match['scoreA'] > match['scoreB'] else flag_b
         st.markdown(f"""<div class="tournament-bracket" style="background: #d4edda;"><div style="text-align: center; font-weight: bold; color: #155724;">{match_label}</div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span>{flag_a} {team_a_name}</span><span style="font-weight: bold; font-size: 1.2em;">{match['scoreA']}</span></div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span>{flag_b} {team_b_name}</span><span style="font-weight: bold; font-size: 1.2em;">{match['scoreB']}</span></div><div style="text-align: center; margin-top: 10px; padding: 8px; background: #c3e6cb; border-radius: 5px;"><strong>➡️ Advances to {next_round}: {winner_flag} {winner}</strong></div></div>""", unsafe_allow_html=True)
     else:
-        st.markdown(f"""<div class="tournament-bracket"><div style="text-align: center; font-weight: bold; color: #1E3C72;">{match_label}</div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span style="font-weight: bold;">{flag_a} {team_a_name}</span><span style="font-weight: bold;">VS</span></div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span style="font-weight: bold;">{flag_b} {team_b_name}</span><span style="font-size: 1.2em;">⏰</span></div><div style="text-align: center; margin-top: 10px; color: #666; font-size: 0.9em;">Winner advances to {next_round}</div></div>""", unsafe_allow_html=True)def show_match_control():
+        st.markdown(f"""<div class="tournament-bracket"><div style="text-align: center; font-weight: bold; color: #1E3C72;">{match_label}</div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span style="font-weight: bold;">{flag_a} {team_a_name}</span><span style="font-weight: bold;">VS</span></div><div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0;"><span style="font-weight: bold;">{flag_b} {team_b_name}</span><span style="font-size: 1.2em;">⏰</span></div><div style="text-align: center; margin-top: 10px; color: #666; font-size: 0.9em;">Winner advances to {next_round}</div></div>""", unsafe_allow_html=True)
+
+def show_match_control():
     if st.session_state.role != 'admin': st.error("🔒 Admin access required"); return
     st.title("⚽ Match Control Center"); db = get_database()
     if db is None: st.error("Database unavailable"); return
@@ -573,6 +599,7 @@ def show_statistics_content(is_admin):
             
     except Exception as e:
         st.error(f"Error loading statistics: {str(e)}")
+
 # Database helper functions
 def get_federations(query={}, **kwargs):
     try: db = get_database(); return list(db.federations.find(query, **kwargs)) if db is not None else []
