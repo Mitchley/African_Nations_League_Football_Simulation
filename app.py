@@ -782,11 +782,23 @@ def show_statistics():
     if goal_counts:
         sorted_scorers = sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)
         for i, (player, goals) in enumerate(sorted_scorers[:10]):
+            goal_text = "goal" if goals == 1 else "goals"
             if i == 0:
-                st.write(f"🏅 **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+                st.write(f"🏅 **{player}** - {goals} {goal_text}")
             elif i == 1:
-                st.write(f"🥈 **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+                st.write(f"🥈 **{player}** - {goals} {goal_text}")
             elif i == 2:
-                st.write(f"🥉 **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+                st.write(f"🥉 **{player}** - {goals} {goal_text}")
             else:
-                st.write(f"**{player}** -
+                st.write(f"**{player}** - {goals} {goal_text}")
+    else:
+        st.info("No goals scored yet")
+    
+    st.subheader("📈 Match Statistics")
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Total Matches", len(matches))
+    with col2: st.metric("Completed Matches", len([m for m in matches if m.get('status') == 'completed']))
+    with col3: st.metric("Total Goals", len(all_goal_scorers))
+
+if __name__ == "__main__":
+    main()
