@@ -62,7 +62,7 @@ def simulate_match_with_commentary(db, match_id, teamA_name, teamB_name):
     ai_commentary = ai_generator.generate_commentary(teamA_name, teamB_name, match_events)
     commentary.extend(ai_commentary)
     
-    # Update match in database if available
+    # Update match in database
     if db:
         db.matches.update_one(
             {"_id": match_id},
@@ -77,7 +77,6 @@ def simulate_match_with_commentary(db, match_id, teamA_name, teamB_name):
         )
     
     # Send email notifications
-    if db:
-        notify_federations_after_match(match_id)
+    notify_federations_after_match(match_id)
     
     return score_a, score_b, goal_scorers, commentary
