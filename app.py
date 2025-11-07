@@ -2,11 +2,25 @@ import streamlit as st
 import time
 import random
 from datetime import datetime
-from frontend.utils.auth import init_session_state, login_user, logout_user
-from frontend.utils.database import save_team, get_database, get_players_by_federation, initialize_database
-from frontend.utils.match_simulator import simulate_match_with_commentary
-from backend.email_service import notify_federations_after_match
 
+# Try to import utilities, with fallbacks
+try:
+    from frontend.utils.auth import init_session_state, login_user, logout_user
+    from frontend.utils.database import save_team, get_database, get_players_by_federation, initialize_database
+    from frontend.utils.match_simulator import simulate_match_with_commentary
+    from backend.email_service import notify_federations_after_match
+except ImportError as e:
+    st.error(f"Import error: {e}")
+    # Define fallback functions
+    def init_session_state(): pass
+    def login_user(*args): return False
+    def logout_user(): pass
+    def save_team(*args): return None
+    def get_database(): return None
+    def get_players_by_federation(*args): return []
+    def initialize_database(): return False
+    def simulate_match_with_commentary(*args): return (0, 0, [], [])
+    def notify_federations_after_match(*args): return False
 init_session_state()
 
 # Country flags dictionary
