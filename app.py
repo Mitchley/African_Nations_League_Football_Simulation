@@ -477,4 +477,316 @@ def show_home():
 
 def show_admin():
     if st.session_state.role != 'admin':
-        st.error("🔒 Admin
+        st.error("🔒 Admin access only")
+        return
+    
+    st.title("👨‍💼 Admin Panel")
+    db = get_database()
+    
+    if not db:
+        st.error("❌ Database not available")
+        return
+    
+    tournament = db.tournaments.find_one({}) or {}
+    st.subheader("Tournament Control")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🚀 Start Tournament", key="admin_start"):
+            initialize_tournament(db)
+            st.success("Tournament started with quarter-finals!")
+    with col2:
+        if st.button("🔄 Reset Matches", key="admin_reset_matches"):
+            db.matches.delete_many({})
+            st.success("All matches reset!")
+    with col3:
+        if st.button("🗑️ Reset All Data", key="admin_reset_all"):
+            db.matches.delete_many({})
+            db.tournaments.delete_many({})
+            st.success("All tournament data reset!")
+    
+    st.markdown("---")
+    show_live_sim(db)
+
+def show_live_sim(db):
+    st.subheader("⚽ Match Simulation")
+    
+    matches = list(db.matches.find({"status": "scheduled"}))
+    
+    if not matches:
+        st.info("No scheduled matches available")
+        return
+    
+    match_options = []
+    for match in matches:
+        teamA = db.federations.find_one({"_id": match['teamA_id']})
+        teamB = db.federations.find_one({"_id": match['teamB_id']})
+        if teamA and teamB:
+            match_options.append({
+                "match": match, 
+                "display": f"{teamA['country']} vs {teamB['country']}",
+                "teamA_name": teamA['country'], 
+                "teamB_name": teamB['country']
+            })
+    
+    if match_options:
+        selected_match_display = st.selectbox("Choose a match:", [m["display"] for m in match_options])
+        selected_match_info = next((m for m in match_options if m["display"] == selected_match_display), None)
+        
+        if selected_match_info:
+            show_match_interface(db, selected_match_info)
+
+def show_match_interface(db, match_info):
+    teamA_name, teamB_name = match_info['teamA_name'], match_info['teamB_name']
+    
+    col1, col2, col3 = st.columns([2, 1, 2])
+    with col1: st.markdown(f"### {teamA_name}")
+    with col2: st.markdown("### VS")
+    with col3: st.markdown(f"### {teamB_name}")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🎮 Play Match (AI Commentary)", use_container_width=True):
+            play_match(db, match_info['match'], teamA_name, teamB_name)
+    with col2:
+        if st.button("⚡ Simulate Match (Quick)", use_container_width=True):
+            simulate_match_quick(db, match_info['match'], teamA_name, teamB_name)
+
+def play_match(db, match, teamA_name, teamB_name):
+    st.info("🔄 Playing match with AI commentary...")
+    
+    try:
+        score_a, score_b, goal_scorers, commentary = simulate_match_with_commentary(
+            db, match["_id"], teamA_name, teamB_name
+        )
+        
+        flag_a = COUNTRY_FLAGS.get(teamA_name, "🏴")
+        flag_b = COUNTRY_FLAGS.get(teamB_name, "🏴")
+        st.success(f"✅ Match completed: {flag_a} {teamA_name} {score_a}-{score_b} {teamB_name} {flag_b}")
+        
+        with st.expander("📝 Match Summary"):
+            st.write(f"**Final Score:** {teamA_name} {score_a} - {score_b} {teamB_name}")
+            if goal_scorers:
+                st.write("**Goal Scorers:**")
+                for goal in goal_scorers:
+                    flag = COUNTRY_FLAGS.get(goal['team'], "🏴")
+                    st.write(f"- {flag} {goal['player']} ({goal['minute']}')")
+            
+            st.write("**Match Commentary:**")
+            for comment in commentary:
+                st.write(f"• {comment}")
+        
+    except Exception as e:
+        st.error(f"Error playing match: {str(e)}")
+        simulate_match_quick(db, match, teamA_name, teamB_name)
+    
+    st.rerun()
+
+def simulate_match_quick(db, match, teamA_name, teamB_name):
+    score_a = random.randint(0, 3)
+    score_b = random.randint(0, 3)
+    
+    goal_scorers = []
+    for i in range(score_a):
+        goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": random.randint(1, 90), "team": teamA_name})
+    for i in range(score_b):
+        goal_scorers.append({"player": f"Player {random.randint(1, 23)}", "minute": random.randint(1, 90), "team": teamB_name})
+    
+    db.matches.update_one(
+        {"_id": match["_id"]},
+        {"$set": {
+            "status": "completed",
+            "scoreA": score_a,
+            "scoreB": score_b,
+            "goal_scorers": goal_scorers,
+            "method": "simulated"
+        }}
+    )
+    
+    notify_federations_after_match(match["_id"])
+    
+    flag_a = COUNTRY_FLAGS.get(teamA_name, "🏴")
+    flag_b = COUNTRY_FLAGS.get(teamB_name, "🏴")
+    st.success(f"✅ Match simulated: {flag_a} {teamA_name} {score_a}-{score_b} {teamB_name} {flag_b}")
+    st.rerun()
+
+def show_federation():
+    if st.session_state.role != 'federation':
+        st.info("👤 Federation access only")
+        return
+    
+    st.title("🇺🇳 My Federation")
+    db = get_database()
+    
+    if not db:
+        st.error("❌ Database not available")
+        return
+        
+    user_team = db.federations.find_one({"representative_email": st.session_state.user['email']})
+    
+    if user_team:
+        flag = COUNTRY_FLAGS.get(user_team['country'], "🏴")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1: st.metric("Team", f"{flag} {user_team['country']}")
+        with col2: st.metric("Manager", user_team.get('manager', 'Unknown'))
+        with col3: st.metric("Rating", user_team.get('rating', 75))
+        with col4: st.metric("Status", user_team.get('status', 'active').title())
+        
+        st.subheader("👥 My Squad")
+        
+        positions = {
+            "GK": "🥅 Goalkeepers",
+            "DF": "🛡️ Defenders", 
+            "MD": "⚡ Midfielders",
+            "AT": "🎯 Attackers"
+        }
+        
+        for pos, title in positions.items():
+            position_players = [p for p in user_team.get('players', []) if p['naturalPosition'] == pos]
+            if position_players:
+                with st.expander(f"{title} ({len(position_players)})"):
+                    for player in position_players:
+                        captain = " ⭐ CAPTAIN" if player.get('isCaptain') else ""
+                        rating = player['ratings'][player['naturalPosition']]
+                        st.write(f"**{player['name']}** - {pos} - Rating: {rating}{captain}")
+        
+        st.subheader("📊 Team Analytics")
+        total_players = len(user_team.get('players', []))
+        if total_players > 0:
+            avg_rating = user_team.get('rating', 75)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1: st.metric("Average Rating", f"{avg_rating}")
+            with col2: st.metric("Squad Size", f"{total_players}/23")
+            with col3: st.metric("Players", total_players)
+    else:
+        st.error("No team found for your account")
+
+def show_tournament():
+    st.title("🏆 Tournament Bracket")
+    db = get_database()
+    
+    if not db:
+        st.error("❌ Database not available")
+        return
+        
+    teams = list(db.federations.find({}))
+    matches = list(db.matches.find({}))
+    tournament = db.tournaments.find_one({}) or {}
+    
+    st.header("AFRICAN NATIONS LEAGUE 2025")
+    st.subheader("ROAD TO THE FINAL")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Status", tournament.get('status', 'Not Started').title())
+    with col2: st.metric("Stage", tournament.get('current_stage', 'Quarter Finals').title())
+    with col3: st.metric("Teams", len(teams))
+    
+    st.markdown("---")
+    
+    st.write("### 🎯 Quarter Finals")
+    qf_matches = [m for m in matches if m.get('stage') == 'quarterfinal']
+    
+    if qf_matches:
+        for match in qf_matches:
+            flag_a = COUNTRY_FLAGS.get(match['teamA_name'], "🏴")
+            flag_b = COUNTRY_FLAGS.get(match['teamB_name'], "🏴")
+            
+            if match.get('status') == 'completed':
+                st.success(f"**{flag_a} {match['teamA_name']}** {match['scoreA']}-{match['scoreB']} **{match['teamB_name']} {flag_b}**")
+                if match.get('method') == 'played':
+                    st.caption("🎮 Played with AI Commentary")
+                else:
+                    st.caption("⚡ Simulated")
+            else:
+                st.info(f"**{flag_a} {match['teamA_name']}** vs **{match['teamB_name']} {flag_b}** - Scheduled")
+    else:
+        st.info("Quarter-final matches not yet generated. Admin can start the tournament.")
+
+def show_matches():
+    st.title("⚽ Matches & Fixtures")
+    db = get_database()
+    
+    if not db:
+        st.error("❌ Database not available")
+        return
+        
+    matches = list(db.matches.find({}).sort("stage", 1))
+    
+    if not matches:
+        st.info("No matches scheduled yet. Tournament needs to be started by admin.")
+        return
+    
+    for match in matches:
+        flag_a = COUNTRY_FLAGS.get(match.get('teamA_name', 'Team A'), "🏴")
+        flag_b = COUNTRY_FLAGS.get(match.get('teamB_name', 'Team B'), "🏴")
+        
+        with st.expander(f"{match.get('stage', 'Match').title()}: {flag_a} {match.get('teamA_name', 'Team A')} vs {match.get('teamB_name', 'Team B')} {flag_b}"):
+            if match.get('status') == 'completed':
+                st.success(f"**Final Score: {match['scoreA']}-{match['scoreB']}**")
+                st.write(f"**Method:** {match.get('method', 'unknown').title()}")
+                st.write(f"**Stage:** {match.get('stage', 'Unknown').title()}")
+                
+                if match.get('goal_scorers'):
+                    st.write("**Goal Scorers:**")
+                    for goal in match['goal_scorers']:
+                        flag = COUNTRY_FLAGS.get(goal['team'], "🏴")
+                        st.write(f"- {flag} {goal['player']} ({goal['minute']}')")
+                
+                if match.get('method') == 'played' and match.get('commentary'):
+                    st.write("**Match Commentary:**")
+                    for comment in match['commentary'][:8]:
+                        st.write(f"- {comment}")
+            else:
+                st.info("**Status:** Scheduled")
+                st.write(f"**Stage:** {match.get('stage', 'Unknown').title()}")
+
+def show_statistics():
+    st.title("📊 Statistics & Analytics")
+    db = get_database()
+    
+    if not db:
+        st.error("❌ Database not available")
+        return
+    
+    st.subheader("🏆 Team Standings")
+    teams = list(db.federations.find({}).sort("rating", -1))
+    
+    if teams:
+        for i, team in enumerate(teams):
+            flag = COUNTRY_FLAGS.get(team['country'], "🏴")
+            if i == 0:
+                st.write(f"🥇 **{flag} {team['country']}** - Rating: {team.get('rating', 75)} - Manager: {team.get('manager', 'Unknown')}")
+            elif i == 1:
+                st.write(f"🥈 **{flag} {team['country']}** - Rating: {team.get('rating', 75)} - Manager: {team.get('manager', 'Unknown')}")
+            elif i == 2:
+                st.write(f"🥉 **{flag} {team['country']}** - Rating: {team.get('rating', 75)} - Manager: {team.get('manager', 'Unknown')}")
+            else:
+                st.write(f"**{flag} {team['country']}** - Rating: {team.get('rating', 75)} - Manager: {team.get('manager', 'Unknown')}")
+    else:
+        st.info("No teams registered yet")
+    
+    st.subheader("🥅 Top Scorers")
+    matches = list(db.matches.find({"status": "completed"}))
+    all_goal_scorers = []
+    
+    for match in matches:
+        for goal in match.get('goal_scorers', []):
+            all_goal_scorers.append(goal)
+    
+    goal_counts = {}
+    for goal in all_goal_scorers:
+        player = goal['player']
+        goal_counts[player] = goal_counts.get(player, 0) + 1
+    
+    if goal_counts:
+        sorted_scorers = sorted(goal_counts.items(), key=lambda x: x[1], reverse=True)
+        for i, (player, goals) in enumerate(sorted_scorers[:10]):
+            if i == 0:
+                st.write(f"🏅 **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+            elif i == 1:
+                st.write(f"🥈 **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+            elif i == 2:
+                st.write(f"🥉 **{player}** - {goals} goal{'s' if goals > 1 else ''}")
+            else:
+                st.write(f"**{player}** -
