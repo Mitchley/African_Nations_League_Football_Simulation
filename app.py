@@ -5,7 +5,7 @@ from datetime import datetime
 from frontend.utils.auth import init_session_state, login_user, logout_user
 from frontend.utils.database import save_team, get_database, get_players_by_federation, initialize_database
 from frontend.utils.match_simulator import simulate_match_with_commentary
-from backend.email_service import notify_federations_after_match
+
 
 init_session_state()
 
