@@ -133,6 +133,11 @@ st.markdown("""
         text-align: center;
         margin: 0.5rem;
     }
+    .login-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -153,7 +158,7 @@ def main():
         st.error(f"Application error: {str(e)}")
 
 def show_login_page():
-    # Main header
+    """Show only login/signup options without tournament details"""
     st.markdown("""
     <div class="main-header">
         <h1 style="margin:0; color: #FFD700; font-size: 3em;">🏆 AFRICAN NATIONS LEAGUE</h1>
@@ -162,7 +167,7 @@ def show_login_page():
     </div>
     """, unsafe_allow_html=True)
     
-    # Feature highlights
+    # Feature highlights - SIMPLIFIED for login page only
     st.subheader("🎯 What You Can Do")
     col1, col2, col3 = st.columns(3)
     
@@ -192,50 +197,7 @@ def show_login_page():
     
     st.markdown("---")
     
-    # Quick stats
-    db = get_database()
-    team_count = get_team_count() if db is not None else 0
-    matches_played = len([m for m in get_matches() if m.get('status') == 'completed']) if db is not None else 0
-    
-    st.subheader("📈 Tournament Overview")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="stats-card">
-            <h3 style="margin:0; font-size: 2em;">{team_count}</h3>
-            <p style="margin:0;">Teams Registered</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        status = "READY" if team_count >= 8 else "WAITING"
-        st.markdown(f"""
-        <div class="stats-card">
-            <h3 style="margin:0; font-size: 2em;">{'🏆' if team_count >= 8 else '⏳'}</h3>
-            <p style="margin:0;">{status}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="stats-card">
-            <h3 style="margin:0; font-size: 2em;">{matches_played}</h3>
-            <p style="margin:0;">Matches Played</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown(f"""
-        <div class="stats-card">
-            <h3 style="margin:0; font-size: 2em;">3</h3>
-            <p style="margin:0;">User Roles</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # AUTHENTICATION SECTION
+    # AUTHENTICATION SECTION - Focus only on login/signup
     st.subheader("🔐 Get Started - Choose Your Role")
     
     tab1, tab2, tab3 = st.tabs(["👑 Admin Login", "🇺🇳 Federation Sign Up", "👀 Visitor Access"])
@@ -263,32 +225,6 @@ def show_login_page():
             st.session_state.user = {"email": "visitor", "role": "visitor"}
             st.session_state.role = "visitor"
             st.rerun()
-    
-    # Show registered teams if any
-    if db is not None and team_count > 0:
-        st.markdown("---")
-        st.subheader("🇺🇳 Currently Registered Teams")
-        teams = get_federations(limit=8)
-        
-        if teams:
-            cols = st.columns(4)
-            for i, team in enumerate(teams):
-                with cols[i % 4]:
-                    flag = COUNTRY_FLAGS.get(team['country'], "🏴")
-                    st.markdown(f"""
-                    <div class="team-card">
-                        <h3 style="margin:0; font-size: 2em;">{flag}</h3>
-                        <h4 style="margin:5px 0; color: #1E3C72;">{team['country']}</h4>
-                        <p style="margin:0; color: #666; font-size: 0.9em;">Rating: {team.get('rating', 75)}</p>
-                        <p style="margin:0; color: #888; font-size: 0.8em;">Manager: {team.get('manager', 'Unknown')}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-        
-        # Show tournament progress
-        if team_count >= 8:
-            st.success("🎊 Tournament ready to start! 8 teams have registered.")
-        else:
-            st.info(f"🔜 {8 - team_count} more teams needed to start the tournament")
 
 def show_federation_registration():
     """Show federation registration form"""
@@ -442,6 +378,7 @@ def show_app():
         show_statistics()
 
 def show_home_dashboard():
+    """Show the main dashboard with all tournament details AFTER login"""
     db = get_database()
     
     if db is None:
@@ -456,7 +393,7 @@ def show_home_dashboard():
     </div>
     """, unsafe_allow_html=True)
     
-    # TOURNAMENT OVERVIEW - Moved to main content area
+    # TOURNAMENT OVERVIEW - Now shown only after login
     st.subheader("📊 Tournament Overview")
     
     teams = get_federations()
@@ -477,27 +414,26 @@ def show_home_dashboard():
     
     st.markdown("---")
     
+    # Show registered teams
+    if teams:
+        st.subheader("🇺🇳 Currently Registered Teams")
+        cols = st.columns(4)
+        for i, team in enumerate(teams):
+            with cols[i % 4]:
+                flag = COUNTRY_FLAGS.get(team['country'], "🏴")
+                rating = team.get('rating', 75)
+                st.markdown(f"""
+                <div class="team-card">
+                    <h3 style="margin:0; font-size: 2em;">{flag}</h3>
+                    <h4 style="margin:5px 0; color: #1E3C72;">{team['country']}</h4>
+                    <p style="margin:0; color: #666; font-size: 0.9em;">Rating: {rating}</p>
+                    <p style="margin:0; color: #888; font-size: 0.8em;">{team.get('manager', 'Unknown')}</p>
+                </div>
+                """, unsafe_allow_html=True)
+    
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.subheader("🇺🇳 Registered Teams")
-        if teams:
-            cols = st.columns(4)
-            for i, team in enumerate(teams):
-                with cols[i % 4]:
-                    flag = COUNTRY_FLAGS.get(team['country'], "🏴")
-                    rating = team.get('rating', 75)
-                    st.markdown(f"""
-                    <div class="team-card">
-                        <h3 style="margin:0; font-size: 2em;">{flag}</h3>
-                        <h4 style="margin:5px 0; color: #1E3C72;">{team['country']}</h4>
-                        <p style="margin:0; color: #666; font-size: 0.9em;">Rating: {rating}</p>
-                        <p style="margin:0; color: #888; font-size: 0.8em;">{team.get('manager', 'Unknown')}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-        else:
-            st.info("No teams registered yet")
-        
         st.markdown("---")
         st.subheader("📅 Recent Matches")
         if completed_matches:
@@ -550,7 +486,7 @@ def show_home_dashboard():
         st.markdown("---")
         st.subheader("🏅 Team Leaderboard")
         if teams:
-            for i, team in enumerate(teams):
+            for i, team in enumerate(teams[:5]):  # Show top 5 only
                 flag = COUNTRY_FLAGS.get(team['country'], "🏴")
                 medal = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"{i+1}."
                 st.markdown(f"""
@@ -563,15 +499,6 @@ def show_home_dashboard():
                 """, unsafe_allow_html=True)
         else:
             st.info("No teams yet")
-        
-        st.markdown("---")
-        st.subheader("⚡ Quick Stats")
-        total_goals = sum(len(match.get('goal_scorers', [])) for match in completed_matches)
-        st.metric("Total Goals", total_goals)
-        
-        if completed_matches:
-            avg_goals = total_goals / len(completed_matches)
-            st.metric("Avg Goals/Match", f"{avg_goals:.1f}")
     
     if st.session_state.role == 'admin' and len(teams) >= 8:
         st.markdown("---")
@@ -593,6 +520,8 @@ def show_home_dashboard():
             if st.button("📊 View Full Bracket", use_container_width=True):
                 st.session_state.current_page = "🏆 Tournament Bracket"
                 st.rerun()
+
+# ... (keep all the other functions exactly the same as in the previous version: show_tournament_bracket, show_enhanced_tournament_bracket, display_enhanced_match_card, show_match_control, play_match_with_commentary, simulate_match_quick, initialize_tournament, advance_tournament, create_semifinals, create_final, simulate_all_matches, show_my_team, show_analytics, show_statistics, show_statistics_content, get_federations, get_matches, get_tournaments)
 
 def show_tournament_bracket():
     st.markdown("""
@@ -1159,7 +1088,7 @@ def show_statistics_content(is_admin):
     except Exception as e:
         st.error(f"Error loading statistics: {str(e)}")
 
-# Database helper functions to replace DatabaseManager
+# Database helper functions
 def get_federations(query={}, **kwargs):
     """Safely get federations from database"""
     try:
