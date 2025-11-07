@@ -6,7 +6,7 @@ def notify_federations_after_match(match_id):
     try:
         db = get_database()
         if not db:
-            print("📧 Email notification (demo mode): Match completed")
+            print("📧 Email notification: Match completed (database not available)")
             return True
         
         match = db.matches.find_one({"_id": match_id})
@@ -27,10 +27,18 @@ def notify_federations_after_match(match_id):
                 'method': match.get('method', 'simulated')
             }
             
+            # Get email config from secrets
+            smtp_config = {
+                'server': st.secrets.get("SMTP_SERVER", ""),
+                'port': st.secrets.get("SMTP_PORT", 587),
+                'email': st.secrets.get("SENDER_EMAIL", ""),
+                'password': st.secrets.get("SENDER_PASSWORD", "")
+            }
+            
             # In demo mode, just print the notification
-            print(f"📧 Email would be sent to: {teamA['representative_email']}")
-            print(f"📧 Email would be sent to: {teamB['representative_email']}")
-            print(f"Match: {match_details['teamA']} {match_details['scoreA']}-{match_details['scoreB']} {match_details['teamB']}")
+            if smtp_config['email']:
+                print(f"📧 Email would be sent from: {smtp_config['email']}")
+            print(f"📧 Match result: {match_details['teamA']} {match_details['scoreA']}-{match_details['scoreB']} {match_details['teamB']}")
             
             return True
         
