@@ -213,7 +213,7 @@ def show_federation_registration():
                 st.success(f"✅ Captain set: {squad[captain_index]['name']}")
         
         else:  # Auto-generate squad
-            st.info("A balanced squad of 23 players will be automatically generated")
+            #st.info("A balanced squad of 23 players will be automatically generated")
             squad = generate_realistic_squad()
         
         if st.form_submit_button("🚀 Register Federation", use_container_width=True):
