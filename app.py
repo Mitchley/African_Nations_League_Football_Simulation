@@ -87,12 +87,12 @@ def show_login_page():
     st.markdown("---")
     st.subheader("🔐 Get Started - Choose Your Role")
     
-    tab1, tab2, tab3 = st.tabs([" Admin Login", "Federation Sign Up", "Visitor Access"])
+    tab1, tab2, tab3 = st.tabs(["👑 Admin Login", "🇺🇳 Federation Sign Up", "👀 Visitor Access"])
     with tab1:
         with st.form("admin_login"):
             email = st.text_input("Email", placeholder="admin@africanleague.com")
             password = st.text_input("Password", type="password")
-            if st.form_submit_button("Login as Admin", use_container_width=True):
+            if st.form_submit_button("🚀 Login as Admin", use_container_width=True):
                 if login_user(email, password):
                     st.success("Welcome Admin!")
                     # FIX: Set current_page for admin
@@ -107,7 +107,7 @@ def show_login_page():
     
     with tab3:
         st.info("Explore tournament matches, standings, and statistics")
-        if st.button("Enter as Visitor", use_container_width=True, type="primary"):
+        if st.button("👀 Enter as Visitor", use_container_width=True, type="primary"):
             st.session_state.user = {"email": "visitor", "role": "visitor"}
             st.session_state.role = "visitor"
             st.session_state.current_page = "🏠 Home"  # This works for visitors
