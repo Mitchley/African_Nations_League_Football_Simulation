@@ -1,84 +1,93 @@
 import random
-import streamlit as st
-from time import sleep
+import requests
+import os
+from frontend.utils.database import get_database
 
-def generate_match_commentary(teamA, teamB, match_events):
-    """Generate full match commentary with play-by-play"""
+class AICommentaryGenerator:
+    def __init__(self):
+        self.api_key = os.getenv('OPENAI_API_KEY')
+        self.use_real_ai = bool(self.api_key)
     
-    commentary = []
+    def generate_commentary(self, teamA, teamB, match_events):
+        """Generate match commentary using AI or fallback to enhanced random"""
+        if self.use_real_ai and self.api_key:
+            return self._generate_openai_commentary(teamA, teamB, match_events)
+        else:
+            return self._generate_fallback_commentary(teamA, teamB, match_events)
     
-    # Pre-match
-    commentary.append(f"🏟️ WELCOME to this African Nations League clash between {teamA} and {teamB}!")
-    commentary.append("🟢 The match is underway! Both teams looking sharp early on.")
+    def _generate_openai_commentary(self, teamA, teamB, match_events):
+        """Generate commentary using OpenAI GPT"""
+        try:
+            prompt = f"""
+            Generate exciting football match commentary for an African Nations League match between {teamA} and {teamB}.
+            
+            Match Events: {match_events}
+            
+            Create realistic, passionate commentary with African football flair. Include:
+            - Exciting play-by-play descriptions
+            - Cultural references to African football
+            - Emotional reactions to goals and key moments
+            - Commentary about player performances
+            - Atmosphere descriptions
+            
+            Return 8-12 commentary lines in bullet points.
+            """
+            
+            # This is a placeholder - you'd integrate with actual OpenAI API
+            response = f"AI Commentary for {teamA} vs {teamB}: Exciting African football action!"
+            
+            # Split into individual commentary lines
+            commentary_lines = [
+                f"The African Nations League clash between {teamA} and {teamB} kicks off with great energy!",
+                f"Beautiful passing football on display from these African giants!",
+                f"The crowd is creating an incredible atmosphere - typical African passion!",
+                f"What a chance! So close to opening the scoring!",
+                f"GOAL! The stadium erupts with African joy!",
+                f"Brilliant skill on display - African flair at its best!",
+                f"The tension builds as we enter the final minutes!",
+                f"FULL TIME! What a spectacle of African football!"
+            ]
+            
+            return commentary_lines
+            
+        except Exception as e:
+            print(f"AI commentary error: {str(e)}")
+            return self._generate_fallback_commentary(teamA, teamB, match_events)
     
-    # Generate match events with commentary
-    for minute in range(5, 91, random.randint(8, 15)):
-        event_type = random.choice(['attack', 'save', 'foul', 'corner', 'shot', 'miss'])
+    def _generate_fallback_commentary(self, teamA, teamB, match_events):
+        """Enhanced fallback commentary with African football flavor"""
         
-        if event_type == 'attack':
-            team = random.choice([teamA, teamB])
-            commentary.append(f"⚡ {minute}' - Great attacking play from {team}! They're putting pressure on the defense.")
-        
-        elif event_type == 'save':
-            commentary.append(f"🧤 {minute}' - INCREDIBLE SAVE! The goalkeeper denies a certain goal!")
-        
-        elif event_type == 'foul':
-            team = random.choice([teamA, teamB])
-            commentary.append(f"🟨 {minute}' - Free kick for {team} in a dangerous position after a foul.")
-        
-        elif event_type == 'shot':
-            team = random.choice([teamA, teamB])
-            commentary.append(f"🎯 {minute}' - SHOT! Just wide of the post from {team}!")
-    
-    # Add some goals randomly
-    goals = []
-    for _ in range(random.randint(1, 4)):
-        minute = random.randint(15, 85)
-        scoring_team = random.choice([teamA, teamB])
-        goals.append((minute, scoring_team))
-    
-    goals.sort()  # Sort by minute
-    
-    for minute, team in goals:
-        commentary.append(f"")
-        commentary.append(f"⚽⚽⚽ GOOOOOOAL! {minute}' - {team} SCORES! WHAT A FINISH! ⚽⚽⚽")
-        commentary.append(f"🎉 The fans are going wild! {team} takes the lead!")
-    
-    # Half-time and full-time
-    commentary.append("")
-    commentary.append("🔄 HALF-TIME! What an exciting first 45 minutes!")
-    commentary.append("🟢 Second half is underway!")
-    commentary.append("")
-    commentary.append("🏁 FULL-TIME! The referee blows the final whistle!")
-    
-    return commentary, goals
-
-def display_live_commentary(commentary):
-    """Display commentary in real-time with delays"""
-    commentary_container = st.empty()
-    
-    full_text = ""
-    for line in commentary:
-        full_text += line + "\n\n"
-        commentary_container.markdown(full_text)
-        sleep(1.5)  # Delay between commentary lines
-    
-    return full_text
-
-def generate_commentary(teamA, teamB, action_type, minute):
-    """Simple commentary for quick actions"""
-    commentaries = {
-        'goal': [
-            f"⚽ {minute}' GOAL! {teamA} with a spectacular finish!",
-            f"⚽ {minute}' WHAT A STRIKE! {teamB} takes the lead!",
-        ],
-        'save': [
-            f"🧤 {minute}' Incredible save by the goalkeeper!",
-            f"🧤 {minute}' What a stop! Unbelievable reflexes!",
-        ],
-        'foul': [
-            f"🟨 {minute}' Strong challenge, referee shows a yellow card",
-            f"⚔️ {minute}' Physical play in midfield, free kick given",
+        african_flair_phrases = [
+            "The juju is working for this team!",
+            "African magic on the pitch!",
+            "The rhythm of the drums inspires the players!",
+            "Beautiful display of African football artistry!",
+            "The passion of the continent shines through!",
+            "Skills that would make Jay-Jay Okocha proud!",
+            "The spirit of African football is alive!",
         ]
-    }
-    return random.choice(commentaries.get(action_type, [f"⏱️ {minute}' Action in progress..."]))
+        
+        commentary = [
+            f"🏆 AFRICAN NATIONS LEAGUE: {teamA} vs {teamB} kicks off!",
+            random.choice(african_flair_phrases),
+            "Both teams showing typical African flair and technical ability!",
+            "The pace is electric - African football at its finest!",
+        ]
+        
+        # Add goal commentary if there are goals
+        goals = [e for e in match_events if 'goal' in e.lower()]
+        if goals:
+            commentary.append("GOAL! The stadium erupts with African celebration!")
+            commentary.append("What a moment for continental football!")
+        
+        commentary.extend([
+            "The second half begins with both teams pushing for glory!",
+            "You can feel the continental pride in every tackle!",
+            "Last minute drama in this African classic!",
+            f"FULL TIME! Another unforgettable African Nations League encounter!"
+        ])
+        
+        return commentary
+
+def get_ai_commentary_generator():
+    return AICommentaryGenerator()
