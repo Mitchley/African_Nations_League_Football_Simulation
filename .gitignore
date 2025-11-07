@@ -1,12 +1,44 @@
-# Create .gitignore file
-echo "__pycache__/" > .gitignore
-echo "*.pyc" >> .gitignore
-echo "*.pyo" >> .gitignore
-echo "*.pyd" >> .gitignore
-echo ".Python" >> .gitignore
-echo "env/" >> .gitignore
-echo "venv/" >> .gitignore
-echo ".venv/" >> .gitignore
-echo ".env" >> .gitignore
-echo ".DS_Store" >> .gitignore
-echo "Thumbs.db" >> .gitignore
+# Streamlit
+.streamlit/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
