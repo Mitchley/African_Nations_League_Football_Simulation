@@ -3,7 +3,191 @@ import time
 import random
 from datetime import datetime
 from frontend.utils.auth import init_session_state, login_user, logout_user
-from frontend.utils.database import save_team, get_database, get_players_by_federation, initialize_database, is_database_available, get_team_count
+from frontend.utils.database import save_team, get_database,import streamlit as st
+import time
+from datetime import datetime
+import random
+
+from frontend.utils.auth import init_session_state, login_user, logout_user
+from frontend.utils.database import get_database
+from frontend.utils.match_simulator import simulate_match
+
+# -------------------------
+# INITIALIZATION
+# -------------------------
+init_session_state()
+
+AFRICAN_COUNTRIES = [
+    "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon",
+    "Cape Verde", "DR Congo", "Egypt", "Ethiopia", "Ghana", "Ivory Coast", "Kenya",
+    "Liberia", "Madagascar", "Malawi", "Mali", "Mauritania", "Morocco", "Mozambique",
+    "Namibia", "Niger", "Nigeria", "Rwanda", "Senegal", "Sierra Leone", "South Africa",
+    "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"
+]
+
+# -------------------------
+# CUSTOM STYLING
+# -------------------------
+st.set_page_config(page_title="African Nations League", layout="wide", page_icon="⚽")
+
+st.markdown("""
+<style>
+/* Fonts and body */
+html, body, [class*="css"] {
+    font-family: 'Poppins', sans-serif !important;
+}
+
+/* App background */
+[data-testid="stAppViewContainer"] {
+    background-color: #f8f9fa;
+    background-image: linear-gradient(to bottom right, #f8f9fa, #ffffff);
+}
+
+/* Sidebar styling */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #004d40 0%, #00695c 100%);
+    color: white;
+}
+[data-testid="stSidebar"] * {
+    color: white !important;
+}
+
+/* Header bar */
+header[data-testid="stHeader"] {
+    background-color: #004d40;
+}
+header [data-testid="stHeading"] {
+    color: white !important;
+}
+
+/* Navbar at top */
+.navbar {
+    background-color: #00695c;
+    padding: 0.6rem 1rem;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: white;
+    font-weight: 600;
+}
+.navbar-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #ffd700;
+}
+.navbar-time {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+/* Card and button design */
+div.stButton>button {
+    background: linear-gradient(90deg, #004d40, #00796b);
+    color: white;
+    font-weight: 600;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 10px;
+    transition: 0.3s ease;
+}
+div.stButton>button:hover {
+    background: linear-gradient(90deg, #00796b, #004d40);
+    transform: scale(1.03);
+}
+
+/* Inputs and selectboxes */
+div[data-baseweb="input"], div[data-baseweb="select"] {
+    background-color: white !important;
+    color: black !important;
+    border-radius: 8px !important;
+    border: 1px solid #ccc !important;
+    padding: 0.3rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------
+# NAVBAR
+# -------------------------
+st.markdown(f"""
+<div class="navbar">
+    <div class="navbar-title">🏆 African Nations League Dashboard</div>
+    <div class="navbar-time">{datetime.now().strftime('%A, %d %B %Y')}</div>
+</div>
+""", unsafe_allow_html=True)
+st.write("")
+
+# -------------------------
+# MAIN APP LOGIC
+# -------------------------
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to:", ["🏠 Home", "⚽ Team Registration", "🧮 Match Simulation", "📊 Database"])
+
+if page == "🏠 Home":
+    st.title("Welcome to the African Nations League!")
+    st.markdown("""
+    ### 🌍 Overview  
+    This platform simulates fixtures, results, and rankings for African football nations.  
+    Manage teams, run match simulations, and visualize results in one modern dashboard.
+    """)
+    st.image("https://upload.wikimedia.org/wikipedia/commons/6/62/CAF_Logo_2024.png", width=180)
+    st.success("Use the sidebar to navigate between sections.")
+
+elif page == "⚽ Team Registration":
+    st.title("⚽ Register a Team")
+
+    country = st.selectbox("Select Country", AFRICAN_COUNTRIES)
+    federation = st.text_input("Federation Name")
+    manager = st.text_input("Manager Name")
+
+    if st.button("Register Team"):
+        db = get_database()
+        teams_collection = db["teams"]
+        team_data = {
+            "country": country,
+            "federation": federation,
+            "manager": manager,
+            "created_at": datetime.now()
+        }
+        teams_collection.insert_one(team_data)
+        st.success(f"✅ {country} has been successfully registered!")
+
+elif page == "🧮 Match Simulation":
+    st.title("🧮 Match Simulation")
+    db = get_database()
+    teams = list(db["teams"].find())
+    if len(teams) < 2:
+        st.warning("At least two teams must be registered to simulate a match.")
+    else:
+        team1 = st.selectbox("Select Team 1", [t["country"] for t in teams])
+        team2 = st.selectbox("Select Team 2", [t["country"] for t in teams if t["country"] != team1])
+
+        if st.button("Simulate Match"):
+            with st.spinner("Simulating match..."):
+                time.sleep(2)
+                result = simulate_match(team1, team2)
+            st.success(f"🏁 Final Result: {team1} {result[team1]} - {result[team2]} {team2}")
+
+elif page == "📊 Database":
+    st.title("📊 Registered Teams")
+    db = get_database()
+    teams = list(db["teams"].find({}, {"_id": 0}))
+    if teams:
+        st.dataframe(teams, use_container_width=True)
+    else:
+        st.info("No teams registered yet.")
+
+# -------------------------
+# FOOTER
+# -------------------------
+st.markdown("""
+<hr style='border:1px solid #ccc; margin-top:40px;'>
+<div style='text-align:center; font-size:0.9rem; color:#666;'>
+    © 2025 African Nations League Simulation | Designed by <b>Mitch</b>
+</div>
+""", unsafe_allow_html=True)
+ get_players_by_federation, initialize_database, is_database_available, get_team_count
 from frontend.utils.match_simulator import simulate_match_with_commentary
 
 init_session_state()
