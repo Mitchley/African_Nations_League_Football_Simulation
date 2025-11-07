@@ -14,17 +14,16 @@ def init_session_state():
 def login_user(email, password):
     """Authenticate user"""
     try:
-        db = get_database()
-        
         # Check admin credentials from secrets first
-        admin_email = st.secrets["ADMIN_EMAIL"]
-        admin_password = st.secrets["ADMIN_PASSWORD"]
+        admin_email = st.secrets.get("ADMIN_EMAIL", "admin@africanleague.com")
+        admin_password = st.secrets.get("ADMIN_PASSWORD", "admin123")
         
         if email == admin_email and password == admin_password:
             st.session_state.user = {"email": email, "role": "admin"}
             st.session_state.role = "admin"
             return True
             
+        db = get_database()
         if db:
             user = db.users.find_one({"email": email, "password": password})
             if user:
