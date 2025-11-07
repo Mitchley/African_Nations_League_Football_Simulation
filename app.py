@@ -603,13 +603,14 @@ def simulate_match_quick(db, match, teamA_name, teamB_name):
         }}
     )
     
+    # Import here to avoid circular imports
+    from backend.email_service import notify_federations_after_match
     notify_federations_after_match(match["_id"])
     
     flag_a = COUNTRY_FLAGS.get(teamA_name, "🏴")
     flag_b = COUNTRY_FLAGS.get(teamB_name, "🏴")
     st.success(f"✅ Match simulated: {flag_a} {teamA_name} {score_a}-{score_b} {teamB_name} {flag_b}")
     st.rerun()
-
 def show_federation():
     if st.session_state.role != 'federation':
         st.info("👤 Federation access only")
