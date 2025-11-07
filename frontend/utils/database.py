@@ -37,7 +37,6 @@ def get_database():
         
         # Test connection
         client.admin.command('ping')
-        st.success(f"✅ Successfully connected to MongoDB database: {database_name}")
         
         # Use the specified database
         database = client[database_name]
