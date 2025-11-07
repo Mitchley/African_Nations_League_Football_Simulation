@@ -354,7 +354,7 @@ def initialize_tournament(db):
     # Clear existing matches
     db.matches.delete_many({})
     
-    # Create quarter-final matches
+    # Create quarter-final matches with proper data structure
     for i in range(0, 8, 2):
         match_data = {
             "teamA_id": teams[i]["_id"],
@@ -382,7 +382,8 @@ def initialize_tournament(db):
         "started_at": datetime.now()
     }
     db.tournaments.update_one({}, {"$set": tournament_data}, upsert=True)
-
+    
+    st.success("🎊 Tournament bracket created with 4 quarter-final matches!")
 def show_app():
     if 'current_page' not in st.session_state:
         st.session_state.current_page = "Home"
@@ -491,7 +492,7 @@ def show_admin():
     tournament = db.tournaments.find_one({}) or {}
     st.subheader("Tournament Control")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         if st.button("🚀 Start Tournament", key="admin_start"):
             initialize_tournament(db)
@@ -501,6 +502,11 @@ def show_admin():
             db.matches.delete_many({})
             st.success("All matches reset!")
     with col3:
+        if st.button("🔧 Fix Match Data", key="admin_fix_matches"):
+            fixed_count = fix_matches_data(db)
+            if fixed_count == 0:
+                st.info("No matches needed fixing")
+    with col4:
         if st.button("🗑️ Reset All Data", key="admin_reset_all"):
             db.matches.delete_many({})
             db.tournaments.delete_many({})
@@ -520,8 +526,14 @@ def show_live_sim(db):
     
     match_options = []
     for match in matches:
+        # Safely check if match has required fields
+        if 'teamA_id' not in match or 'teamB_id' not in match:
+            continue
+            
         teamA = db.federations.find_one({"_id": match['teamA_id']})
         teamB = db.federations.find_one({"_id": match['teamB_id']})
+        
+        # Only include matches where both teams exist
         if teamA and teamB:
             match_options.append({
                 "match": match, 
@@ -536,6 +548,8 @@ def show_live_sim(db):
         
         if selected_match_info:
             show_match_interface(db, selected_match_info)
+    else:
+        st.info("No valid matches available for simulation. Please start the tournament first.")
 
 def show_match_interface(db, match_info):
     teamA_name, teamB_name = match_info['teamA_name'], match_info['teamB_name']
