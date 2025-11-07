@@ -6,11 +6,6 @@ class AICommentaryGenerator:
         # Get API key from Streamlit Cloud secrets
         self.api_key = st.secrets.get("OPENAI_API_KEY", "")
         self.use_real_ai = bool(self.api_key)
-        
-        if self.use_real_ai:
-            print("✅ OpenAI API key loaded from Streamlit Cloud")
-        else:
-            print("ℹ️ Using enhanced fallback commentary")
     
     def generate_commentary(self, teamA, teamB, match_events):
         """Generate match commentary using AI or fallback"""
