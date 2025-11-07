@@ -171,6 +171,10 @@ def show_app():
         st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True): logout_user(); st.rerun()
     
+    # Ensure Home is the default page after login
+    if 'current_page' not in st.session_state or st.session_state.current_page is None:
+        st.session_state.current_page = "🏠 Home"
+    
     current_page = st.session_state.get('current_page', '🏠 Home')
     # Updated function calls to use "Home" instead of "Home Dashboard"
     if current_page == "🏠 Home": show_home_dashboard()
@@ -179,7 +183,6 @@ def show_app():
     elif current_page == "👥 My Team": show_my_team()
     elif current_page == "📊 Analytics": show_analytics()
     elif current_page == "📊 Statistics": show_statistics()
-
 def show_home_dashboard():
     db = get_database()
     if db is None: st.error("❌ Database connection failed"); return
