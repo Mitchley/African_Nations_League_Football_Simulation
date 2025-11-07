@@ -121,7 +121,7 @@ def show_federation_registration():
     progress = min(team_count / 8 * 100, 100)
     #st.markdown(f"""<div class="progress-bar"><div class="progress-fill" style="width: {progress}%"></div></div>""", unsafe_allow_html=True)
     
-    if team_count >= 8: st.warning("🎯 Tournament full! New registrations will be waitlisted.")
+    if team_count >= 8: st.warning("Tournament full! New registrations will be waitlisted.")
     
     with st.form("register_team"):
         col1, col2 = st.columns(2)
@@ -135,7 +135,7 @@ def show_federation_registration():
         
         # Player Management Section
         st.markdown("---")
-        st.subheader("👥 Manage Your Squad")
+        st.subheader("Manage Your Squad")
         
         # Option to auto-generate or manually add players
         player_option = st.radio("Player Selection:", ["Auto-generate Squad", "Add Players Manually"])
@@ -216,7 +216,7 @@ def show_federation_registration():
             #st.info("A balanced squad of 23 players will be automatically generated")
             squad = generate_realistic_squad()
         
-        if st.form_submit_button("🚀 Register Federation", use_container_width=True):
+        if st.form_submit_button("Register Federation", use_container_width=True):
             if not squad and player_option == "Add Players Manually":
                 st.error("Please add players to your squad")
             elif gk_count < 1 and player_option == "Add Players Manually":
