@@ -1,3 +1,6 @@
+import smtplib
+from email.mime.text import MimeText
+from email.mime.multipart import MimeMultipart
 import streamlit as st
 from frontend.utils.database import get_database
 
@@ -28,17 +31,19 @@ def notify_federations_after_match(match_id):
             }
             
             # Get email config from secrets
-            smtp_config = {
-                'server': st.secrets.get("SMTP_SERVER", ""),
-                'port': st.secrets.get("SMTP_PORT", 587),
-                'email': st.secrets.get("SENDER_EMAIL", ""),
-                'password': st.secrets.get("SENDER_PASSWORD", "")
-            }
+            sender_email = st.secrets.get("SENDER_EMAIL", "")
+            sender_password = st.secrets.get("SENDER_PASSWORD", "")
+            smtp_server = st.secrets.get("SMTP_SERVER", "smtp.gmail.com")
+            smtp_port = st.secrets.get("SMTP_PORT", 587)
             
-            # In demo mode, just print the notification
-            if smtp_config['email']:
-                print(f"📧 Email would be sent from: {smtp_config['email']}")
-            print(f"📧 Match result: {match_details['teamA']} {match_details['scoreA']}-{match_details['scoreB']} {match_details['teamB']}")
+            if sender_email and sender_password:
+                # In production, this would send actual emails
+                print(f"📧 Email would be sent from: {sender_email}")
+                print(f"📧 To: {teamA['representative_email']} and {teamB['representative_email']}")
+                print(f"📧 Match: {match_details['teamA']} {match_details['scoreA']}-{match_details['scoreB']} {match_details['teamB']}")
+            else:
+                print("📧 Email configuration not complete - printing to console instead")
+                print(f"Match result: {match_details['teamA']} {match_details['scoreA']}-{match_details['scoreB']} {match_details['teamB']}")
             
             return True
         
