@@ -922,50 +922,42 @@ def play_match_with_commentary(match):
         team_a = db.federations.find_one({"country": match['teamA_name']})
         team_b = db.federations.find_one({"country": match['teamB_name']})
         
-        score_a, score_b, goal_scorers, commentary = simulate_match_with_commentary(
+        # Use enhanced simulation with actual player names
+        score_a, score_b, goal_scorers, commentary = simulate_match_realistic(
             db, match["_id"], match['teamA_name'], match['teamB_name']
         )
         
-        # Enhance goal_scorers with realistic names if available
-        enhanced_goal_scorers = []
-        for goal in goal_scorers:
-            enhanced_goal = goal.copy()
-            if goal['team'] == match['teamA_name'] and team_a and 'players' in team_a:
-                # Replace generic name with actual player name
-                player = random.choice(team_a['players'])
-                enhanced_goal['player'] = player['name']
-                assister = random.choice(team_a['players'])
-                enhanced_goal['assist'] = f"Assist: {assister['name']}" if player['name'] != assister['name'] else "Solo goal"
-            elif goal['team'] == match['teamB_name'] and team_b and 'players' in team_b:
-                player = random.choice(team_b['players'])
-                enhanced_goal['player'] = player['name']
-                assister = random.choice(team_b['players'])
-                enhanced_goal['assist'] = f"Assist: {assister['name']}" if player['name'] != assister['name'] else "Solo goal"
-            else:
-                enhanced_goal['assist'] = "Unassisted"
-            
-            enhanced_goal_scorers.append(enhanced_goal)
-        
         st.success(f"**Final: {match['teamA_name']} {score_a}-{score_b} {match['teamB_name']}**")
         
-        with st.expander("Match Commentary"):
+        # Display commentary
+        with st.expander("📝 Match Commentary", expanded=True):
             for comment in commentary:
-                st.write(f"• {comment}")
+                if "GOAL!" in comment:
+                    st.success(f"🎯 {comment}")
+                elif "Assist" in comment:
+                    st.info(f"↪️ {comment}")
+                else:
+                    st.write(f"• {comment}")
         
-        if enhanced_goal_scorers:
-            st.write("**Goal Scorers:**")
-            for goal in enhanced_goal_scorers:
+        # Display goal scorers with assists
+        if goal_scorers:
+            st.subheader("🥅 Goal Scorers")
+            for goal in sorted(goal_scorers, key=lambda x: x['minute']):
                 flag = COUNTRY_FLAGS.get(goal['team'], "🏴")
-                st.write(f"- {goal['minute']}' - {flag} **{goal['player']}** ({goal['team']}) - {goal.get('assist', 'Unassisted')}")
+                assist_info = goal.get('assist', 'Unassisted')
+                if "Assist:" in assist_info:
+                    st.write(f"**{goal['minute']}'** - {flag} **{goal['player']}** *({assist_info})*")
+                else:
+                    st.write(f"**{goal['minute']}'** - {flag} **{goal['player']}** (Solo goal)")
         
-        # Update match with enhanced goal data
+        # Update match in database
         db.matches.update_one(
             {"_id": match["_id"]},
             {"$set": {
                 "status": "completed",
                 "scoreA": score_a,
                 "scoreB": score_b,
-                "goal_scorers": enhanced_goal_scorers,
+                "goal_scorers": goal_scorers,
                 "method": "commentary"
             }}
         )
@@ -975,7 +967,92 @@ def play_match_with_commentary(match):
         
     except Exception as e:
         st.error(f"Match simulation error: {str(e)}")
+        # Fallback to quick simulation
         simulate_match_quick(match)
+
+def simulate_match_realistic(db, match_id, team_a_name, team_b_name):
+    """Simulate a match with actual player names and random assists"""
+    # Get team data
+    team_a = db.federations.find_one({"country": team_a_name})
+    team_b = db.federations.find_one({"country": team_b_name})
+    
+    # Simulate scores
+    score_a = random.randint(0, 3)
+    score_b = random.randint(0, 3)
+    
+    commentary = []
+    goal_scorers = []
+    
+    commentary.append(f"Match between {team_a_name} and {team_b_name} begins!")
+    
+    def get_goal_event(team, team_name, minute):
+        """Create a goal event with actual player names"""
+        if team and 'players' in team:
+            # Get field players (not goalkeepers)
+            field_players = [p for p in team['players'] if p['naturalPosition'] != 'GK']
+            
+            if field_players:
+                # Select scorer
+                scorer = random.choice(field_players)
+                
+                # 70% chance of assist, 30% solo goal
+                has_assist = random.random() < 0.7
+                
+                if has_assist:
+                    # Select different player for assist
+                    possible_assisters = [p for p in field_players if p['name'] != scorer['name']]
+                    if possible_assisters:
+                        assister = random.choice(possible_assisters)
+                        assist_text = f"Assist: {assister['name']}"
+                    else:
+                        assist_text = "Solo goal"
+                else:
+                    assist_text = "Solo goal"
+                
+                return {
+                    "player": scorer['name'],
+                    "minute": minute,
+                    "team": team_name,
+                    "assist": assist_text
+                }
+        
+        # Fallback
+        return {
+            "player": f"Player {random.randint(1, 23)}",
+            "minute": minute,
+            "team": team_name,
+            "assist": "Unassisted"
+        }
+    
+    # Generate goals for team A
+    for i in range(score_a):
+        minute = random.randint(1, 90)
+        goal = get_goal_event(team_a, team_a_name, minute)
+        goal_scorers.append(goal)
+        commentary.append(f"{minute}' - GOAL! {goal['player']} scores for {team_a_name}!")
+        if "Assist:" in goal['assist']:
+            assister_name = goal['assist'].replace("Assist: ", "")
+            commentary.append(f"    Great work by {assister_name} to set up the goal!")
+    
+    # Generate goals for team B
+    for i in range(score_b):
+        minute = random.randint(1, 90)
+        goal = get_goal_event(team_b, team_b_name, minute)
+        goal_scorers.append(goal)
+        commentary.append(f"{minute}' - GOAL! {goal['player']} scores for {team_b_name}!")
+        if "Assist:" in goal['assist']:
+            assister_name = goal['assist'].replace("Assist: ", "")
+            commentary.append(f"    Beautiful assist from {assister_name}!")
+    
+    # Final commentary
+    if score_a + score_b > 0:
+        commentary.append("What an exciting match!")
+    else:
+        commentary.append("A defensive battle ends goalless.")
+    
+    commentary.append("Full time!")
+    
+    return score_a, score_b, goal_scorers, commentary
 
 def simulate_match_quick(match):
     db = get_database()
@@ -986,51 +1063,57 @@ def simulate_match_quick(match):
     score_a = random.randint(0, 3)
     score_b = random.randint(0, 3)
     
-    # Get team data for realistic player names
+    # Get team data
     team_a = db.federations.find_one({"country": match['teamA_name']})
     team_b = db.federations.find_one({"country": match['teamB_name']})
     
     goal_scorers = []
     
-    # Generate goals for team A with realistic names
-    for i in range(score_a):
-        if team_a and 'players' in team_a:
-            scorer = random.choice(team_a['players'])
-            assister = random.choice(team_a['players'])
-            goal_scorers.append({
-                "player": scorer['name'],
-                "minute": random.randint(1, 90),
-                "team": match['teamA_name'],
-                "assist": f"Assist: {assister['name']}" if scorer['name'] != assister['name'] else "Solo goal"
-            })
-        else:
-            # Fallback if team data not available
-            goal_scorers.append({
-                "player": f"Player {random.randint(1, 23)}",
-                "minute": random.randint(1, 90),
-                "team": match['teamA_name'],
-                "assist": f"Assist: Player {random.randint(1, 23)}"
-            })
+    def create_quick_goal(team, team_name, minute):
+        """Create a quick goal with actual player names"""
+        if team and 'players' in team:
+            field_players = [p for p in team['players'] if p['naturalPosition'] != 'GK']
+            
+            if field_players:
+                scorer = random.choice(field_players)
+                
+                # 60% chance of assist in quick simulation
+                has_assist = random.random() < 0.6
+                
+                if has_assist:
+                    possible_assisters = [p for p in field_players if p['name'] != scorer['name']]
+                    if possible_assisters:
+                        assister = random.choice(possible_assisters)
+                        assist_text = f"Assist: {assister['name']}"
+                    else:
+                        assist_text = "Solo goal"
+                else:
+                    assist_text = "Solo goal"
+                
+                return {
+                    "player": scorer['name'],
+                    "minute": minute,
+                    "team": team_name,
+                    "assist": assist_text
+                }
+        
+        # Fallback
+        return {
+            "player": f"Player {random.randint(1, 23)}",
+            "minute": minute,
+            "team": team_name,
+            "assist": "Unassisted"
+        }
     
-    # Generate goals for team B with realistic names
+    # Generate goals for team A
+    for i in range(score_a):
+        goal = create_quick_goal(team_a, match['teamA_name'], random.randint(1, 90))
+        goal_scorers.append(goal)
+    
+    # Generate goals for team B
     for i in range(score_b):
-        if team_b and 'players' in team_b:
-            scorer = random.choice(team_b['players'])
-            assister = random.choice(team_b['players'])
-            goal_scorers.append({
-                "player": scorer['name'],
-                "minute": random.randint(1, 90),
-                "team": match['teamB_name'],
-                "assist": f"Assist: {assister['name']}" if scorer['name'] != assister['name'] else "Solo goal"
-            })
-        else:
-            # Fallback if team data not available
-            goal_scorers.append({
-                "player": f"Player {random.randint(1, 23)}",
-                "minute": random.randint(1, 90),
-                "team": match['teamB_name'],
-                "assist": f"Assist: Player {random.randint(1, 23)}"
-            })
+        goal = create_quick_goal(team_b, match['teamB_name'], random.randint(1, 90))
+        goal_scorers.append(goal)
     
     # Sort goals by minute
     goal_scorers.sort(key=lambda x: x['minute'])
@@ -1052,7 +1135,6 @@ def simulate_match_quick(match):
         st.rerun()
     except Exception as e:
         st.error(f"Simulation failed: {str(e)}")
-
 def initialize_tournament(db):
     try:
         teams = list(db.federations.find({}).limit(8))
