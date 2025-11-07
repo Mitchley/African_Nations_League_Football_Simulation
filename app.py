@@ -125,14 +125,108 @@ def show_federation_registration():
     
     with st.form("register_team"):
         col1, col2 = st.columns(2)
-        with col1: country = st.selectbox("Select Country", AFRICAN_COUNTRIES); manager = st.text_input("Manager Name")
-        with col2: rep_name = st.text_input("Representative Name"); rep_email = st.text_input("Email"); password = st.text_input("Password", type="password")
-        if st.form_submit_button("Register Federation", use_container_width=True):
-            if register_federation(country, manager, rep_name, rep_email, password):
-                st.success("Federation registered successfully!")
-                if login_user(rep_email, password):
-                    st.session_state.current_page = "🏠 Home"; st.rerun()
-
+        with col1: 
+            country = st.selectbox("Select Country", AFRICAN_COUNTRIES)
+            manager = st.text_input("Manager Name")
+        with col2: 
+            rep_name = st.text_input("Representative Name")
+            rep_email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+        
+        # Player Management Section
+        st.markdown("---")
+        st.subheader("👥 Manage Your Squad")
+        
+        # Option to auto-generate or manually add players
+        player_option = st.radio("Player Selection:", ["Auto-generate Squad", "Add Players Manually"])
+        
+        squad = []
+        if player_option == "Add Players Manually":
+            st.info("💡 Add at least 11 players (1 GK, 4 DF, 4 MD, 3 AT recommended)")
+            
+            # Position counters
+            gk_count = 0
+            df_count = 0
+            md_count = 0
+            at_count = 0
+            
+            # Add players dynamically
+            num_players = st.number_input("Number of players to add:", min_value=11, max_value=23, value=15)
+            
+            for i in range(num_players):
+                st.markdown(f"### Player {i+1}")
+                col1, col2, col3 = st.columns([2, 1, 1])
+                
+                with col1:
+                    player_name = st.text_input(f"Player Name {i+1}", placeholder="e.g., Mohamed Salah", key=f"name_{i}")
+                
+                with col2:
+                    position = st.selectbox(f"Position {i+1}", ["GK", "DF", "MD", "AT"], key=f"pos_{i}")
+                    # Update counters
+                    if position == "GK": gk_count += 1
+                    elif position == "DF": df_count += 1
+                    elif position == "MD": md_count += 1
+                    elif position == "AT": at_count += 1
+                
+                with col3:
+                    rating = st.slider(f"Rating {i+1}", 50, 100, 75, key=f"rating_{i}")
+                
+                if player_name:  # Only add if player has a name
+                    player_data = {
+                        "name": player_name,
+                        "naturalPosition": position,
+                        "ratings": {
+                            "GK": rating if position == "GK" else random.randint(30, 60),
+                            "DF": rating if position == "DF" else random.randint(30, 60),
+                            "MD": rating if position == "MD" else random.randint(30, 60),
+                            "AT": rating if position == "AT" else random.randint(30, 60)
+                        },
+                        "isCaptain": False
+                    }
+                    squad.append(player_data)
+            
+            # Show squad composition
+            st.markdown("---")
+            st.subheader("📊 Squad Composition")
+            comp_col1, comp_col2, comp_col3, comp_col4 = st.columns(4)
+            with comp_col1: st.metric("Goalkeepers", gk_count)
+            with comp_col2: st.metric("Defenders", df_count)
+            with comp_col3: st.metric("Midfielders", md_count)
+            with comp_col4: st.metric("Attackers", at_count)
+            
+            # Validate squad composition
+            if gk_count < 1:
+                st.error("❌ Need at least 1 Goalkeeper")
+            if df_count < 4:
+                st.warning("⚠️ Recommended: At least 4 Defenders")
+            if md_count < 4:
+                st.warning("⚠️ Recommended: At least 4 Midfielders")
+            if at_count < 3:
+                st.warning("⚠️ Recommended: At least 3 Attackers")
+            
+            # Set captain
+            if squad:
+                captain_options = [f"{i+1}. {p['name']} ({p['naturalPosition']})" for i, p in enumerate(squad)]
+                selected_captain = st.selectbox("Select Team Captain:", captain_options)
+                captain_index = int(selected_captain.split('.')[0]) - 1
+                squad[captain_index]["isCaptain"] = True
+                st.success(f"✅ Captain set: {squad[captain_index]['name']}")
+        
+        else:  # Auto-generate squad
+            st.info("A balanced squad of 23 players will be automatically generated")
+            squad = generate_realistic_squad()
+        
+        if st.form_submit_button("🚀 Register Federation", use_container_width=True):
+            if not squad and player_option == "Add Players Manually":
+                st.error("Please add players to your squad")
+            elif gk_count < 1 and player_option == "Add Players Manually":
+                st.error("Need at least 1 Goalkeeper")
+            else:
+                if register_federation(country, manager, rep_name, rep_email, password, squad):
+                    st.success("Federation registered successfully!")
+                    if login_user(rep_email, password):
+                        st.session_state.current_page = "🏠 Home"
+                        st.rerun()
 def register_federation(country, manager, rep_name, rep_email, password):
     try:
         db = get_database()
