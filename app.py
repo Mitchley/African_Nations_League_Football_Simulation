@@ -793,4 +793,15 @@ def show_statistics():
             elif i == 2:
                 st.write(f"🥉 **{player}** - {goals} {goal_text}")
             else:
-                st.write(f"**{player}** - {goals}
+                st.write(f"**{player}** - {goals} {goal_text}")
+    else:
+        st.info("No goals scored yet")
+    
+    st.subheader("📈 Match Statistics")
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Total Matches", len(matches))
+    with col2: st.metric("Completed Matches", len([m for m in matches if m.get('status') == 'completed']))
+    with col3: st.metric("Total Goals", len(all_goal_scorers))
+
+if __name__ == "__main__":
+    main()
